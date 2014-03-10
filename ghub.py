@@ -93,7 +93,7 @@ def get_pull_requests(number):
         print 'ERROR: detached head'
         sys.exit(1)
     else:
-        user, repo = get_repo_and_user()
+        user, repo = get_repo_and_user('upstream')
         url = GITHUB_API_URL + '/repos/%s/%s/pulls' % (user, repo)
         if number:
             url += '/%d' % number
