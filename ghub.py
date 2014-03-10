@@ -52,11 +52,12 @@ def get_branch():
         return None
 
 
-def get_repo_and_user():
+def get_repo_and_user(remote_name='origin'):
     """
-    Call show origin to retrieve the repo and user.
+    Call git remote to retrieve the repo and user for the specified
+    remote name. Typical values are 'upstream' and 'origin'.
     """
-    origin = git_cmd('remote show origin'.split())
+    origin = git_cmd(('remote show ' + remote_name).split())
     for line in origin.splitlines():
         line = line.strip()
         if line.startswith(ORIGIN_LINE_START):
@@ -67,6 +68,24 @@ def get_repo_and_user():
             user_name, repo = user_name_repo.split('/')
             repo = repo.replace('.git', '')
             return user_name, repo
+
+
+def get_lead_commit(base_branch):
+    """
+    Retreives the sha1 and subject of the first commit to appear
+    on this branch (but not on base branch).
+    """
+    commit = git_cmd(("cherry -v " +
+                      base_branch).split()).splitlines()[0].split()
+    return (commit[1], ' '.join(commit[2:]))
+
+
+def get_commit_message_body(commit_sha1):
+    """
+    Returns commit message body (no subject) for the given sha1.
+    """
+    cmd = "log --format=%b -n 1 " + commit_sha1
+    return git_cmd(cmd.split())
 
 
 def get_pull_requests(number):
@@ -122,9 +141,25 @@ def print_pull_request(pr, verbose):
         print_tuple(pr['user']['login'], '#%s %s' % (pr['number'], pr['title']))
 
 
-def create_pull_request():
-    print "Not implemented yet."
-    pass
+def create_pull_request(base_branch):
+    """
+    Creates a new pull request from the commits in the current branch against
+    the supplied base branch in upstream.
+    """
+    (upstream_user, upstream_repo) = get_repo_and_user('upstream')
+    (user, repo) = get_repo_and_user('upstream')
+    (sha1, subj) = get_lead_commit(base_branch)
+    body = get_commit_message_body(sha1)
+    branch = get_branch()
+    url = GITHUB_API_URL + '/repos/%s/%s/pulls' % (upstream_user, upstream_repo)
+
+    data = json.dumps({'title': subj, 'body': body,
+                       'head': ":".join((user, branch)), 'base': base_branch})
+    result = make_github_request(url, data)
+    if 'number' in result:
+        print "Submitted Pull Request #%d - %s" % (result['number'], result['title'])
+    else:
+        print "Sorry, something bad happened:" + result
 
 
 if __name__ == '__main__':
@@ -138,7 +173,9 @@ if __name__ == '__main__':
         '-d', '--diff', metavar='number', nargs=1, type=int,
         help='show diff for pull request #')
     parser.add_argument(
-        '-n', '--newpull', help='create a new pull request from current branch', action='store_true')
+        '-n', '--newpull', help='create a new pull request from the current '
+        'branch to base_branch',
+        metavar='base_branch', nargs=1)
     parser.add_argument(
         '-v', '--verbose', help='be verbose', action='store_true')
     args = parser.parse_args()
@@ -149,6 +186,6 @@ if __name__ == '__main__':
     elif args.diff:
         print get_pull_request_diff(args.diff[0])
     elif args.newpull:
-        create_pull_request()
+        create_pull_request(args.newpull[0])
     else:
         parser.print_usage()
