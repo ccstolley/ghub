@@ -2,7 +2,6 @@ import urllib2
 import sys
 import subprocess
 import json
-import termcolor
 import textwrap
 
 GITHUB_API_URL = 'https://api.github.com'
@@ -116,11 +115,27 @@ def display_pull_requests(verbose=False, number=None):
         print
 
 
+def colored(text, color, attrs=None):
+    colormap = dict(zip(
+        ['grey', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan',
+         'white', ], range(30, 38)))
+    attrmap = dict(zip(
+        ['bold', 'dark', '', 'underline', 'blink', '', 'reverse', 'concealed' ],
+        range(1, 9)))
+    reset = '\033[0m'
+    fmt_str = '\033[%dm%s'
+    text = fmt_str % (colormap[color], text)
+    if attrs is not None:
+        for attr in attrs:
+            text = fmt_str % (attrmap[attr], text)
+    return text + reset
+
+
 def print_pull_request(pr, verbose):
     def print_tuple(a, b, a_color='white', b_color='white'):
         print '%25s : %s' % (
-            termcolor.colored(a, a_color, attrs=['bold']),
-            termcolor.colored(b, b_color))
+            colored(a, a_color, attrs=['bold']),
+            colored(b, b_color))
 
     if verbose:
         print_tuple('Title', '#%s %s' % (pr['number'], pr['title']),
