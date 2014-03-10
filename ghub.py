@@ -1,4 +1,5 @@
 import urllib2
+import sys
 import subprocess
 import json
 import termcolor
@@ -27,7 +28,6 @@ def make_github_request(*args, **kwargs):
     req = urllib2.Request(*args, **kwargs)
     urlstream = urllib2.urlopen(req)
     content_type = urlstream.headers['content-type']
-    print content_type
     if content_type.split(';')[0] == ('application/json'):
         return json.loads(urlstream.read())
     else:
@@ -120,5 +120,32 @@ def print_pull_request(pr, verbose):
 
 
 def create_pull_request():
+    print "Not implemented yet."
+    pass
 
-print display_pull_requests(1)
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(
+        description='command line interface to github')
+    parser.add_argument(
+        '-s', '--showpull', metavar='number', nargs='?', type=int,
+        help='show pull request # or show all', default=0)
+    parser.add_argument(
+        '-d', '--diff', metavar='number', nargs=1, type=int,
+        help='show diff for pull request #')
+    parser.add_argument(
+        '-n', '--newpull', help='create a new pull request from current branch', action='store_true')
+    parser.add_argument(
+        '-v', '--verbose', help='be verbose', action='store_true')
+    args = parser.parse_args()
+
+    if args.showpull is not 0:
+        display_pull_requests(number=args.showpull,
+                              verbose=args.verbose or args.showpull)
+    elif args.diff:
+        print get_pull_request_diff(args.diff[0])
+    elif args.newpull:
+        create_pull_request()
+    else:
+        parser.print_usage()
