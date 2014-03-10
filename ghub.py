@@ -108,6 +108,9 @@ def print_pull_request(pr, verbose):
                     b_color='yellow')
         print_tuple('Submitter', pr['user']['login'])
         print_tuple('Created At', pr['created_at'])
+        if 'mergeable' in pr:
+            col = 'green' if pr['mergeable'] else 'red'
+            print_tuple('Mergable', pr['mergeable'], b_color=col)
         print_tuple('URL', pr['html_url'])
         paragraphs = pr['body'].splitlines()
         for i, par in enumerate(paragraphs):
