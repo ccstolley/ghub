@@ -5,7 +5,6 @@ import json
 import textwrap
 
 GITHUB_API_URL = 'https://api.github.com'
-GITHUB_HTML_URL = 'https://github.com'
 ORIGIN_LINE_START = 'Push  URL:'
 GIT_EXECUTABLE = subprocess.Popen(
     'which \git', shell=True, stdout=subprocess.PIPE).communicate()[0].strip()
@@ -23,7 +22,8 @@ def make_github_request(*args, **kwargs):
     """
     token = get_api_token()
     kwargs.setdefault('headers', {}).update(
-            {'Authorization': 'token %s' % token})
+            {'Authorization': 'token %s' % token,
+             'User-agent': 'ccstolley-ghub'})
     req = urllib2.Request(*args, **kwargs)
     urlstream = urllib2.urlopen(req)
     content_type = urlstream.headers['content-type']
@@ -101,9 +101,10 @@ def get_pull_requests(number):
 
 
 def get_pull_request_diff(number):
-    user, repo = get_repo_and_user()
-    url = GITHUB_HTML_URL + '/%s/%s/pull/%s.diff' % (user, repo, number)
-    return make_github_request(url)
+    user, repo = get_repo_and_user('upstream')
+    url = GITHUB_API_URL + '/repos/%s/%s/pulls/%s' % (user, repo, number)
+    return make_github_request(url,
+        headers={'accept': 'application/vnd.github.diff'})
 
 
 def display_pull_requests(verbose=False, number=None):
