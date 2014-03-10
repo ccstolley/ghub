@@ -17,6 +17,10 @@ More exhaustive tools exist (see http://hub.github.com for one
 example). This tool is intended to be simple, fast and have few
 dependencies.
 
+This tool is unfinished. Most of the examples below don't work yet.
+Also, this file needs to be updated with an explanation of how to 
+configure your git repository to work with `ghub`.
+
 ## Examples
 
 Display a specific issue:
