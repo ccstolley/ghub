@@ -22,7 +22,7 @@ This tool is unfinished. Most of the examples below don't work yet.
 ## Getting Started
 
 1. Generate a personal access token from
-   [https://github.com/settings/applications](github).
+   [github](https://github.com/settings/applications).
 2. Store the access token in your gitconfig. This has potentially
    serious security implications. Only do this on a machine you trust:
    ```
@@ -31,6 +31,7 @@ This tool is unfinished. Most of the examples below don't work yet.
 3. Create remote repositories for `upstream` and `origin`. Eg.:
     ```
     git remote add origin git@github.com:joesmith/ghub
+
     git remote add upstream git@github.com:ccstolley/ghub
     ```
 4. Add an alias for ghub.py to make it easier to invoke from the
