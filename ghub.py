@@ -251,7 +251,8 @@ def print_pull_request(pr, verbose):
         print_pull_request_comments(pr['number'])
     else:
         print_tuple(pr['user']['login'][:12],
-                    '#%s %s' % (pr['number'], pr['title']), a_color='cyan')
+                    wrap_to_console('#%s %s' % (pr['number'], pr['title']))[0],
+                    a_color='cyan')
 
 
 def create_pull_request(base_branch):
