@@ -141,7 +141,6 @@ def get_issues(filterby):
         else:
             assignee = get_repo_and_user('origin')[0]
         url += '?assignee=' + urllib2.quote(assignee)
-    print url
     return make_github_request(url)
 
 
@@ -225,7 +224,7 @@ def print_pull_request(pr, verbose):
                     b_color='yellow')
         print_tuple('Submitter', pr['user']['login'])
         if 'assignee' in pr:
-            print_tuple('Assignee', pr['assignee'].get('login'))
+            print_tuple('Assignee', (pr['assignee'] or {}).get('login'))
         print_tuple('Created At', pr['created_at'])
         if 'mergeable' in pr:
             if pr['merged']:
