@@ -52,6 +52,8 @@ def make_github_request(*args, **kwargs):
     try:
         urlstream = urllib2.urlopen(req)
     except urllib2.HTTPError as e:
+        if e.getcode() == 404:
+            return []
         print "%d %s" % (e.getcode(), e.reason)
         print json.dumps(json.loads(e.read()), indent=2)
         raise SystemExit
@@ -85,7 +87,7 @@ def get_repo_and_user(remote_name='origin'):
     Call git remote to retrieve the repo and user for the specified
     remote name. Typical values are 'upstream' and 'origin'.
     """
-    origin = git_cmd(('remote show ' + remote_name).split())
+    origin = git_cmd(('remote show -n ' + remote_name).split())
     for line in origin.splitlines():
         line = line.strip()
         if line.startswith(ORIGIN_LINE_START):
@@ -128,6 +130,20 @@ def get_pull_requests(number):
             url += '/%d' % number
         return make_github_request(url)
 
+def get_issues(filterby):
+    upstream_user, repo = get_repo_and_user('upstream')
+    url = GITHUB_API_URL + '/repos/%s/%s/issues' % (upstream_user, repo)
+    if filterby and filterby.isdigit():
+        url += '/%d' % int(filterby)
+    else:
+        if filterby:
+            assignee = filterby
+        else:
+            assignee = get_repo_and_user('origin')[0]
+        url += '?assignee=' + urllib2.quote(assignee)
+    print url
+    return make_github_request(url)
+
 
 def get_pull_request_diff(number):
     user, repo = get_repo_and_user('upstream')
@@ -143,6 +159,14 @@ def display_pull_requests(verbose=False, number=None):
     for pr in pullreqs:
         print_pull_request(pr, verbose)
         print
+
+
+def display_issues(filterby, verbose=False):
+    issues = get_issues(filterby)
+    if filterby and filterby.isdigit():
+        issues = (issues, )
+    for issue in issues:
+        print_pull_request(issue, verbose)
 
 
 def colored(text, color, attrs=None):
@@ -200,6 +224,8 @@ def print_pull_request(pr, verbose):
         print_tuple('Title', '#%s %s' % (pr['number'], pr['title']),
                     b_color='yellow')
         print_tuple('Submitter', pr['user']['login'])
+        if 'assignee' in pr:
+            print_tuple('Assignee', pr['assignee'].get('login'))
         print_tuple('Created At', pr['created_at'])
         if 'mergeable' in pr:
             if pr['merged']:
@@ -224,7 +250,8 @@ def print_pull_request(pr, verbose):
         print
         print_pull_request_comments(pr['number'])
     else:
-        print_tuple(pr['user']['login'], '#%s %s' % (pr['number'], pr['title']))
+        print_tuple(pr['user']['login'][:12],
+                    '#%s %s' % (pr['number'], pr['title']), a_color='cyan')
 
 
 def create_pull_request(base_branch):
@@ -301,7 +328,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='command line interface to github')
     parser.add_argument(
-        '-s', '--showpull', metavar='number', nargs='?', type=int,
+        '-i', '--showissue', metavar='number', nargs='?', type=str,
+        help='show issue #, or show all for specified user', default=0)
+    parser.add_argument(
+        '-p', '--showpull', metavar='number', nargs='?', type=int,
         help='show pull request # or show all', default=0)
     parser.add_argument(
         '-d', '--diff', metavar='number', nargs=1, type=int,
@@ -323,6 +353,10 @@ if __name__ == '__main__':
     if args.showpull is not 0:
         display_pull_requests(number=args.showpull,
                               verbose=args.verbose or args.showpull)
+    elif args.showissue is not 0:
+        display_issues(filterby=args.showissue,
+                       verbose=args.verbose or (
+                       args.showissue and args.showissue.isdigit()))
     elif args.diff:
         print get_pull_request_diff(args.diff[0])
     elif args.newpull:
