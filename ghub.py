@@ -162,6 +162,11 @@ def print_pull_request(pr, verbose):
                 mergelabel = ('No', 'white', 'red')
             print_tuple('Mergable', *mergelabel)
         print_tuple('URL', pr['html_url'])
+        if 'commits' in pr:
+            adds = colored("+%d" % pr['additions'], 'green')
+            dels = colored("-%d" % pr['deletions'], 'red')
+            print_tuple('Commits', "%d (%s, %s)" % (
+                pr['commits'], adds, dels))
         paragraphs = pr['body'].splitlines()
         for i, par in enumerate(paragraphs):
             if i == 0:
