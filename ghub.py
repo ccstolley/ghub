@@ -2,6 +2,8 @@ import urllib2
 import sys
 import subprocess
 import json
+import tempfile
+import os
 import textwrap
 
 GITHUB_API_URL = 'https://api.github.com'
@@ -21,10 +23,13 @@ def make_github_request(*args, **kwargs):
     Send an authorization token in a github api request.
     """
     token = get_api_token()
+    method = kwargs.pop('method', None)
     kwargs.setdefault('headers', {}).update(
             {'Authorization': 'token %s' % token,
              'User-agent': 'ccstolley-ghub'})
     req = urllib2.Request(*args, **kwargs)
+    if method:
+        req.get_method = lambda : method
     urlstream = urllib2.urlopen(req)
     content_type = urlstream.headers['content-type']
     if content_type.split(';')[0] == ('application/json'):
@@ -176,11 +181,39 @@ def create_pull_request(base_branch):
 
     data = json.dumps({'title': subj, 'body': body,
                        'head': ":".join((user, branch)), 'base': base_branch})
-    result = make_github_request(url, data)
+    result = make_github_request(url, data,
+                                 headers={'content-type': 'application/json'})
     if 'number' in result:
         print "Submitted Pull Request #%d - %s" % (result['number'], result['title'])
     else:
         print "Sorry, something bad happened:" + result
+
+
+def get_text_from_editor(def_text):
+    tmp = tempfile.mktemp()
+    open(tmp, "w").write(def_text)
+    editor = os.environ.get("EDITOR","vim")
+    os.system("%s + %s" % (editor, tmp))
+    return "\n".join([k for k in open(tmp).read().splitlines()
+                      if not k.startswith("#")])
+
+
+def merge_pull_request(number):
+    (upstream_user, upstream_repo) = get_repo_and_user('upstream')
+    commit_msg = get_text_from_editor("# Enter merge comments for PR %d\n\n" %
+                                      number)
+    if not commit_msg:
+        print "No commit message: Aborting."
+        raise SystemExit
+    data = json.dumps({'commit_message': commit_msg})
+    url = GITHUB_API_URL + '/repos/%s/%s/pulls/%d/merge' % (
+        upstream_user, upstream_repo, number)
+    result = make_github_request(
+        url, data, method='PUT', headers={'content-type': 'application/json'})
+    if 'merged' in result:
+        print "Pull Request #%d: %s" % (number, result['message'])
+    else:
+        print "Sorry, something bad happened:" + str(result)
 
 
 if __name__ == '__main__':
@@ -198,6 +231,9 @@ if __name__ == '__main__':
         'branch to base_branch',
         metavar='base_branch', nargs=1)
     parser.add_argument(
+        '-m', '--mergepull', help='merge pull request #', type=int,
+        metavar='number', nargs=1)
+    parser.add_argument(
         '-v', '--verbose', help='be verbose', action='store_true')
     args = parser.parse_args()
 
@@ -208,5 +244,7 @@ if __name__ == '__main__':
         print get_pull_request_diff(args.diff[0])
     elif args.newpull:
         create_pull_request(args.newpull[0])
+    elif args.mergepull:
+        merge_pull_request(args.mergepull[0])
     else:
         parser.print_usage()
