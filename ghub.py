@@ -178,9 +178,12 @@ def get_pull_request_comments(number):
     return sorted(issue_comments + pull_comments, key=itemgetter('created_at'))
 
 
-def print_pull_request_comments(number):
-    r = get_pull_request_comments(number)
-    for comment in r:
+def print_pull_request_comments(comment_obj):
+    if isinstance(comment_obj, int):
+        comments = get_pull_request_comments(comment_obj)
+    else:
+        comments = (comment_obj, )
+    for comment in comments:
         paragraphs = comment['body'].splitlines()
         for i, par in enumerate(paragraphs):
             wrapped_body = wrap_to_console(par)
@@ -272,6 +275,26 @@ def merge_pull_request(number):
     else:
         print "Sorry, something bad happened:" + str(result)
 
+def post_issue_comment(number):
+    """
+    Posts a comment to an issue.
+    POST /repos/:owner/:repo/issues/:number/comments
+    """
+    msg = get_text_from_editor("# Enter comments for issue %d\n\n" % number)
+    if not msg:
+        print "No comments: Aborting."
+        raise SystemExit
+    (upstream_user, upstream_repo) = get_repo_and_user('upstream')
+    url = GITHUB_API_URL + '/repos/%s/%s/issues/%d/comments' % (
+        upstream_user, upstream_repo, number)
+    data = json.dumps({'body': msg})
+    result = make_github_request(
+        url, data, headers={'content-type': 'application/json'})
+    if 'body' in result:
+        print_pull_request_comments(result)
+    else:
+        print "Something bad happened: " + str(result)
+
 
 if __name__ == '__main__':
     import argparse
@@ -291,6 +314,9 @@ if __name__ == '__main__':
         '-m', '--mergepull', help='merge pull request #', type=int,
         metavar='number', nargs=1)
     parser.add_argument(
+        '-c', '--comment', help='post comment on issue #', type=int,
+        metavar='number', nargs=1)
+    parser.add_argument(
         '-v', '--verbose', help='be verbose', action='store_true')
     args = parser.parse_args()
 
@@ -303,5 +329,7 @@ if __name__ == '__main__':
         create_pull_request(args.newpull[0])
     elif args.mergepull:
         merge_pull_request(args.mergepull[0])
+    elif args.comment:
+        post_issue_comment(args.comment[0])
     else:
         parser.print_usage()
