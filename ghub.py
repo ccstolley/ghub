@@ -6,6 +6,9 @@ import tempfile
 import os
 import textwrap
 from operator import itemgetter
+import termios
+import struct
+import fcntl
 
 GITHUB_API_URL = 'https://api.github.com'
 ORIGIN_LINE_START = 'Push  URL:'
@@ -17,6 +20,21 @@ def git_cmd(args):
         [GIT_EXECUTABLE, ] + args, shell=False, stdout=subprocess.PIPE,
         stderr=subprocess.PIPE).communicate() 
     return result.strip()
+
+
+def get_console_width():
+    result = struct.unpack('hhhh', fcntl.ioctl(
+        0, termios.TIOCGWINSZ, struct.pack('HHHH', 0,0,0,0)))
+    return result[1]
+
+
+def wrap_to_console(text):
+    """
+    Wraps text to console width. For now, we won't cache the width value.
+    """
+    width = max(get_console_width() - 16, 52)
+    return textwrap.wrap(text, width, replace_whitespace=False,
+        break_long_words=False, break_on_hyphens=False)
 
 
 def make_github_request(*args, **kwargs):
@@ -165,7 +183,7 @@ def print_pull_request_comments(number):
     for comment in r:
         paragraphs = comment['body'].splitlines()
         for i, par in enumerate(paragraphs):
-            wrapped_body = textwrap.wrap(par, 52, replace_whitespace=False)
+            wrapped_body = wrap_to_console(par)
             if i == 0:
                 print_tuple(comment['user']['login'][:12], wrapped_body.pop(0),
                             a_color='cyan')
@@ -198,7 +216,7 @@ def print_pull_request(pr, verbose):
         for i, par in enumerate(paragraphs):
             if i == 0:
                 print_tuple('Body', '')
-            for line in textwrap.wrap(par, 52, replace_whitespace=False):
+            for line in wrap_to_console(par):
                 print_tuple('', line)
         print
         print_pull_request_comments(pr['number'])
