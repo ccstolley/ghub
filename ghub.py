@@ -167,7 +167,7 @@ def print_pull_request_comments(number):
         for i, par in enumerate(paragraphs):
             wrapped_body = textwrap.wrap(par, 52, replace_whitespace=False)
             if i == 0:
-                print_tuple(comment['user']['login'], wrapped_body.pop(0),
+                print_tuple(comment['user']['login'][:12], wrapped_body.pop(0),
                             a_color='cyan')
             for line in wrapped_body:
                 print_tuple('', line)
