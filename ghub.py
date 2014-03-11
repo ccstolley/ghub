@@ -30,7 +30,12 @@ def make_github_request(*args, **kwargs):
     req = urllib2.Request(*args, **kwargs)
     if method:
         req.get_method = lambda : method
-    urlstream = urllib2.urlopen(req)
+    try:
+        urlstream = urllib2.urlopen(req)
+    except urllib2.HTTPError as e:
+        print "%d %s" % (e.getcode(), e.reason)
+        print json.dumps(json.loads(e.read()), indent=2)
+        raise SystemExit
     content_type = urlstream.headers['content-type']
     if content_type.split(';')[0] == ('application/json'):
         return json.loads(urlstream.read())
@@ -173,7 +178,7 @@ def create_pull_request(base_branch):
     the supplied base branch in upstream.
     """
     (upstream_user, upstream_repo) = get_repo_and_user('upstream')
-    (user, repo) = get_repo_and_user('upstream')
+    (user, repo) = get_repo_and_user('origin')
     (sha1, subj) = get_lead_commit(base_branch)
     body = get_commit_message_body(sha1)
     branch = get_branch()
