@@ -5,6 +5,7 @@ import json
 import tempfile
 import os
 import textwrap
+from operator import itemgetter
 
 GITHUB_API_URL = 'https://api.github.com'
 ORIGIN_LINE_START = 'Push  URL:'
@@ -142,12 +143,38 @@ def colored(text, color, attrs=None):
     return text + reset
 
 
-def print_pull_request(pr, verbose):
-    def print_tuple(a, b, a_color='white', b_color='white'):
-        print '%25s : %s' % (
-            colored(a, a_color, attrs=['bold']),
-            colored(b, b_color))
+def print_tuple(a, b, a_color='white', b_color='white'):
+    print '%25s : %s' % (
+        colored(a, a_color, attrs=['bold']),
+        colored(b, b_color))
 
+
+def get_pull_request_comments(number):
+    user, repo = get_repo_and_user('upstream')
+    url = GITHUB_API_URL + '/repos/%s/%s/issues/%d/comments' % (
+        user, repo, number)
+    issue_comments = make_github_request(url)
+    url = GITHUB_API_URL + '/repos/%s/%s/pulls/%d/comments' % (
+        user, repo, number)
+    pull_comments = make_github_request(url)
+    return sorted(issue_comments + pull_comments, key=itemgetter('created_at'))
+
+
+def print_pull_request_comments(number):
+    r = get_pull_request_comments(number)
+    for comment in r:
+        paragraphs = comment['body'].splitlines()
+        for i, par in enumerate(paragraphs):
+            wrapped_body = textwrap.wrap(par, 52, replace_whitespace=False)
+            if i == 0:
+                print_tuple(comment['user']['login'], wrapped_body.pop(0),
+                            a_color='cyan')
+            for line in wrapped_body:
+                print_tuple('', line)
+        print
+
+
+def print_pull_request(pr, verbose):
     if verbose:
         print_tuple('Title', '#%s %s' % (pr['number'], pr['title']),
                     b_color='yellow')
@@ -173,6 +200,8 @@ def print_pull_request(pr, verbose):
                 print_tuple('Body', '')
             for line in textwrap.wrap(par, 52, replace_whitespace=False):
                 print_tuple('', line)
+        print
+        print_pull_request_comments(pr['number'])
     else:
         print_tuple(pr['user']['login'], '#%s %s' % (pr['number'], pr['title']))
 
