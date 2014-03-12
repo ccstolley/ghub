@@ -17,7 +17,7 @@ More exhaustive tools exist (see http://hub.github.com for one
 example). This tool is intended to be simple, fast and have few
 dependencies.
 
-This tool is unfinished. Most of the examples below don't work yet.
+This tool is a work in progress.
 
 ## Getting Started
 
