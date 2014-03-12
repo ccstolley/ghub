@@ -1,3 +1,11 @@
+"""
+CLI interface to github.
+
+Make sure to run these first:
+    git config --global github.token <github personal access token>
+    git remote add upstream git@github.com:owner/repo
+    git remote add origin git@github.com:username/repo
+"""
 import urllib2
 import sys
 import subprocess
@@ -13,18 +21,25 @@ import fcntl
 GITHUB_API_URL = 'https://api.github.com'
 ORIGIN_LINE_START = 'Push  URL:'
 GIT_EXECUTABLE = subprocess.Popen(
-    'which \git', shell=True, stdout=subprocess.PIPE).communicate()[0].strip()
+    r'which \git', shell=True, stdout=subprocess.PIPE).communicate()[0].strip()
+
 
 def git_cmd(args):
+    """
+    Executes git with the supplied arguments.
+    """
     result, _ = subprocess.Popen(
         [GIT_EXECUTABLE, ] + args, shell=False, stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE).communicate() 
+        stderr=subprocess.PIPE).communicate()
     return result.strip()
 
 
 def get_console_width():
+    """
+    Obtain the current width of the console window.
+    """
     result = struct.unpack('hhhh', fcntl.ioctl(
-        0, termios.TIOCGWINSZ, struct.pack('HHHH', 0,0,0,0)))
+        0, termios.TIOCGWINSZ, struct.pack('HHHH', 0, 0, 0, 0)))
     return result[1]
 
 
@@ -34,7 +49,7 @@ def wrap_to_console(text):
     """
     width = max(get_console_width() - 16, 52)
     return textwrap.wrap(text, width, replace_whitespace=False,
-        break_long_words=False, break_on_hyphens=False)
+                         break_long_words=False, break_on_hyphens=False)
 
 
 def make_github_request(*args, **kwargs):
@@ -44,11 +59,11 @@ def make_github_request(*args, **kwargs):
     token = get_api_token()
     method = kwargs.pop('method', None)
     kwargs.setdefault('headers', {}).update(
-            {'Authorization': 'token %s' % token,
-             'User-agent': 'ccstolley-ghub'})
+        {'Authorization': 'token %s' % token,
+         'User-agent': 'ccstolley-ghub'})
     req = urllib2.Request(*args, **kwargs)
     if method:
-        req.get_method = lambda : method
+        req.get_method = lambda: method
     try:
         urlstream = urllib2.urlopen(req)
     except urllib2.HTTPError as e:
@@ -119,6 +134,10 @@ def get_commit_message_body(commit_sha1):
 
 
 def get_pull_requests(number):
+    """
+    Retreives a specific pull request or all pull requests if
+    number == None. Returns a dictionary or list of dictionaries.
+    """
     branch = get_branch()
     if branch is None:
         print 'ERROR: detached head'
@@ -130,7 +149,12 @@ def get_pull_requests(number):
             url += '/%d' % number
         return make_github_request(url)
 
+
 def get_issues(filterby):
+    """
+    Retreives issues from github. Filters by either a specific
+    number or assignee. Returns a dictionary or list of dictionaries.
+    """
     upstream_user, repo = get_repo_and_user('upstream')
     url = GITHUB_API_URL + '/repos/%s/%s/issues' % (upstream_user, repo)
     if filterby and filterby.isdigit():
@@ -145,13 +169,19 @@ def get_issues(filterby):
 
 
 def get_pull_request_diff(number):
+    """
+    Retrieves diff of specified pull request. Returns a string.
+    """
     user, repo = get_repo_and_user('upstream')
     url = GITHUB_API_URL + '/repos/%s/%s/pulls/%s' % (user, repo, number)
-    return make_github_request(url,
-        headers={'accept': 'application/vnd.github.diff'})
+    return make_github_request(
+        url, headers={'accept': 'application/vnd.github.diff'})
 
 
 def display_pull_requests(verbose=False, number=None):
+    """
+    Obtains and displays pull requests.
+    """
     pullreqs = get_pull_requests(number)
     if number:
         pullreqs = (pullreqs, )
@@ -161,6 +191,9 @@ def display_pull_requests(verbose=False, number=None):
 
 
 def display_issues(filterby, verbose=False):
+    """
+    Obtains and displays issues.
+    """
     issues = get_issues(filterby)
     if filterby and filterby.isdigit():
         issues = (issues, )
@@ -169,11 +202,14 @@ def display_issues(filterby, verbose=False):
 
 
 def colored(text, color, attrs=None):
+    """
+    Colorizes specified text.
+    """
     colormap = dict(zip(
         ['grey', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan',
          'white', ], range(30, 38)))
     attrmap = dict(zip(
-        ['bold', 'dark', '', 'underline', 'blink', '', 'reverse', 'concealed' ],
+        ['bold', 'dark', '', 'underline', 'blink', '', 'reverse', 'concealed'],
         range(1, 9)))
     reset = '\033[0m'
     fmt_str = '\033[%dm%s'
@@ -185,12 +221,19 @@ def colored(text, color, attrs=None):
 
 
 def print_tuple(a, b, a_color='white', b_color='white'):
+    """
+    Formats string arguments a and b for display on screen in two columns.
+    """
     print '%25s : %s' % (
         colored(a, a_color, attrs=['bold']),
         colored(b, b_color))
 
 
 def get_pull_request_comments(number):
+    """
+    Retreives pull request comments and issue comments from the
+    specified issue/pr number.
+    """
     user, repo = get_repo_and_user('upstream')
     url = GITHUB_API_URL + '/repos/%s/%s/issues/%d/comments' % (
         user, repo, number)
@@ -202,6 +245,9 @@ def get_pull_request_comments(number):
 
 
 def print_pull_request_comments(comment_obj):
+    """
+    Obtains and displays pr comments on the console.
+    """
     if isinstance(comment_obj, int):
         comments = get_pull_request_comments(comment_obj)
     else:
@@ -219,6 +265,9 @@ def print_pull_request_comments(comment_obj):
 
 
 def print_pull_request(pr, verbose):
+    """
+    Displays pull requests or issues on screen.
+    """
     if verbose:
         print_tuple('Title', '#%s %s' % (pr['number'], pr['title']),
                     b_color='yellow')
@@ -260,32 +309,40 @@ def create_pull_request(base_branch):
     the supplied base branch in upstream.
     """
     (upstream_user, upstream_repo) = get_repo_and_user('upstream')
-    (user, repo) = get_repo_and_user('origin')
+    (user, _) = get_repo_and_user('origin')
     (sha1, subj) = get_lead_commit(base_branch)
     body = get_commit_message_body(sha1)
     branch = get_branch()
-    url = GITHUB_API_URL + '/repos/%s/%s/pulls' % (upstream_user, upstream_repo)
+    url = GITHUB_API_URL + '/repos/%s/%s/pulls' % (
+        upstream_user, upstream_repo)
 
     data = json.dumps({'title': subj, 'body': body,
                        'head': ":".join((user, branch)), 'base': base_branch})
     result = make_github_request(url, data,
                                  headers={'content-type': 'application/json'})
     if 'number' in result:
-        print "Submitted Pull Request #%d - %s" % (result['number'], result['title'])
+        print "Submitted Pull Request #%d - %s" % (result['number'],
+                                                   result['title'])
     else:
         print "Sorry, something bad happened:" + result
 
 
 def get_text_from_editor(def_text):
+    """
+    Run the default text editor and return the text entered.
+    """
     tmp = tempfile.mktemp()
     open(tmp, "w").write(def_text)
-    editor = os.environ.get("EDITOR","vim")
+    editor = os.environ.get("EDITOR", "vim")
     os.system("%s + %s" % (editor, tmp))
     return "\n".join([k for k in open(tmp).read().splitlines()
                       if not k.startswith("#")])
 
 
 def merge_pull_request(number):
+    """
+    Prompt for a comment and merge specified pull request.
+    """
     (upstream_user, upstream_repo) = get_repo_and_user('upstream')
     commit_msg = get_text_from_editor("# Enter merge comments for PR %d\n\n" %
                                       number)
@@ -301,6 +358,7 @@ def merge_pull_request(number):
         print "Pull Request #%d: %s" % (number, result['message'])
     else:
         print "Sorry, something bad happened:" + str(result)
+
 
 def post_issue_comment(number):
     """
@@ -356,7 +414,7 @@ if __name__ == '__main__':
     elif args.showissue is not 0:
         display_issues(filterby=args.showissue,
                        verbose=args.verbose or (
-                       args.showissue and args.showissue.isdigit()))
+                           args.showissue and args.showissue.isdigit()))
     elif args.diff:
         print get_pull_request_diff(args.diff[0])
     elif args.newpull:
