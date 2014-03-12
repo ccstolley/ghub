@@ -41,28 +41,69 @@ This tool is unfinished. Most of the examples below don't work yet.
     ```
 5. Go drink beer.
 
+## Usage
+```
+usage: ghub.py [-h] [-i [number]] [-p [number]] [-d number] [-n base_branch]
+               [-m number] [-c number] [-v]
+
+command line interface to github
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -i [number], --showissue [number]
+                        show issue #, or show all for specified user
+  -p [number], --showpull [number]
+                        show pull request # or show all
+  -d number, --diff number
+                        show diff for pull request #
+  -n base_branch, --newpull base_branch
+                        create a new pull request from the current branch to
+                        base_branch
+  -m number, --mergepull number
+                        merge pull request #
+  -c number, --comment number
+                        post comment on issue #
+  -v, --verbose         be verbose
+```
+
 ## Examples
 
 Display a specific issue:
     
-    ghub issue 442
+    ghub -i 442
 
 Post a comment to a specific issue:
 
-    ghub comm 442
+    ghub -c 442
 
-List a summary of all issues assigned to me:
+List all open issues assigned to me in this repo:
     
-    ghub list
+    ghub -i
+    
+List all unassigned open issues in this repo:
+
+    ghub -i none
+    
+List all open issues in this repo:
+
+    ghub -i '*'
+
+List issues assigned to ccstolley, including comments and summary:
+
+    ghub -i ccstolley -v
 
 Create a pull request from the current branch to the specific upstream branch:
 
-    ghub cpr dev
+    ghub -n dev
 
-Display pull request comments:
+Display pull request and comments:
 
-    ghub pr 101
-
-Display pull request diff:
+    ghub -p 101
     
-    ghub dpr 101
+Merge pull request:
+
+    ghub -m 101
+
+Display pull request diff in color (requires cdiff):
+    
+    ghub -d 101 | cdiff
