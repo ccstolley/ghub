@@ -327,16 +327,20 @@ def create_pull_request(base_branch):
         print "Sorry, something bad happened:" + result
 
 
-def get_text_from_editor(def_text):
+def get_text_from_editor(def_text, list_format=False):
     """
     Run the default text editor and return the text entered.
     """
     tmp = tempfile.mktemp()
     open(tmp, "w").write(def_text)
     editor = os.environ.get("EDITOR", "vim")
-    os.system("%s + %s" % (editor, tmp))
-    return "\n".join([k for k in open(tmp).read().splitlines()
-                      if not k.startswith("#")])
+    os.system("%s %s" % (editor, tmp))
+    if list_format:
+        return [k.rstrip() for k in open(tmp).read().splitlines()
+                      if not (k.startswith("#") or k.rstrip() == '')]
+    else:
+        return "\n".join([k.rstrip() for k in open(tmp).read().splitlines()
+                      if not (k.startswith("#") or k.rstrip() == '')])
 
 
 def merge_pull_request(number):
@@ -344,7 +348,7 @@ def merge_pull_request(number):
     Prompt for a comment and merge specified pull request.
     """
     (upstream_user, upstream_repo) = get_repo_and_user('upstream')
-    commit_msg = get_text_from_editor("# Enter merge comments for PR %d\n\n" %
+    commit_msg = get_text_from_editor("\n# Enter merge comments for PR %d" %
                                       number)
     if not commit_msg:
         print "No commit message: Aborting."
@@ -357,7 +361,33 @@ def merge_pull_request(number):
     if 'merged' in result:
         print "Pull Request #%d: %s" % (number, result['message'])
     else:
-        print "Sorry, something bad happened:" + str(result)
+        print "Sorry, something bad happened: " + str(result)
+
+def create_issue():
+    """
+    Create a new issue. Open editor and read title from first line and body
+    from subsequent lines.
+    """
+    (upstream_user, upstream_repo) = get_repo_and_user('upstream')
+    issue_text = get_text_from_editor(
+        "\n# Enter issue title on the first line. Lines starting with '#' "
+        "\n# will be ignored and an empty message aborts the issue creation.",
+        list_format=True)
+    if not issue_text:
+        print "No issue title: Aborting."
+        raise SystemExit
+    data = {'title': issue_text.pop(0)}
+    if issue_text:
+        data['body'] = '\n'.join(issue_text)
+    data = json.dumps(data)
+    url = GITHUB_API_URL + '/repos/%s/%s/issues' % (
+        upstream_user, upstream_repo)
+    result = make_github_request(
+        url, data, headers={'content-type': 'application/json'})
+    if 'title' in result:
+        print "Created issue #%d: %s" % (result['number'], result['title'])
+    else:
+        print "Sorry, something bad happened: " + str(result)
 
 
 def post_issue_comment(number):
@@ -365,7 +395,7 @@ def post_issue_comment(number):
     Posts a comment to an issue.
     POST /repos/:owner/:repo/issues/:number/comments
     """
-    msg = get_text_from_editor("# Enter comments for issue %d\n\n" % number)
+    msg = get_text_from_editor("\n# Enter comments for issue %d" % number)
     if not msg:
         print "No comments: Aborting."
         raise SystemExit
@@ -405,6 +435,8 @@ if __name__ == '__main__':
         '-c', '--comment', help='post comment on issue #', type=int,
         metavar='number', nargs=1)
     parser.add_argument(
+        '-a', '--addissue', help='create a new issue', action='store_true')
+    parser.add_argument(
         '-v', '--verbose', help='be verbose', action='store_true')
     args = parser.parse_args()
 
@@ -423,5 +455,7 @@ if __name__ == '__main__':
         merge_pull_request(args.mergepull[0])
     elif args.comment:
         post_issue_comment(args.comment[0])
+    elif args.addissue:
+        create_issue()
     else:
         parser.print_usage()
