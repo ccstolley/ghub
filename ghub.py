@@ -425,6 +425,8 @@ def assign_issue(number, assignee):
     PATCH /repos/:owner/:repo/issues/:number
     """
     (upstream_user, upstream_repo) = get_repo_and_user('upstream')
+    if not assignee:
+        (assignee, _ ) = get_repo_and_user('origin')
     data = json.dumps({'assignee': assignee})
     url = GITHUB_API_URL + '/repos/%s/%s/issues/%d' % (
         upstream_user, upstream_repo, number)
@@ -497,9 +499,13 @@ if __name__ == '__main__':
     elif args.openissue:
         create_issue()
     elif args.assign:
-        if args.number.isdigit():
-            assign_issue(args.number, args.assign)
+        if not args.number:
+            if args.assign and args.assign.isdigit():
+                number = int(args.assign)
+            else:
+                number = _issue_number()  # will cause prog to bail
+            assign_issue(number, None)  # use origin user
         else:
-            print "must specify a PR or issue #"
+            assign_issue(number, args.assign)
     else:
         parser.print_usage()
