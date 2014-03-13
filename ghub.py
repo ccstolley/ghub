@@ -58,6 +58,7 @@ def make_github_request(*args, **kwargs):
     """
     token = get_api_token()
     method = kwargs.pop('method', None)
+    verbose = kwargs.pop('verbose', None)
     kwargs.setdefault('headers', {}).update(
         {'Authorization': 'token %s' % token,
          'User-agent': 'ccstolley-ghub'})
@@ -73,10 +74,15 @@ def make_github_request(*args, **kwargs):
         print json.dumps(json.loads(e.read()), indent=2)
         raise SystemExit
     content_type = urlstream.headers['content-type']
+    data = urlstream.read()
+    if verbose:
+        print urlstream.headers
+        print urlstream.getcode()
+        print data
     if content_type.split(';')[0] == ('application/json'):
-        return json.loads(urlstream.read())
+        return json.loads(data)
     else:
-        return urlstream.read()
+        return data
 
 
 def get_api_token():
@@ -150,7 +156,7 @@ def get_pull_requests(number):
     user, repo = get_repo_and_user('upstream')
     url = GITHUB_API_URL + '/repos/%s/%s/pulls' % (user, repo)
     if number:
-        url += '/%d' % number
+        url += '/%d' % int(number)
     return make_github_request(url)
 
 
@@ -186,7 +192,7 @@ def display_pull_requests(verbose=False, number=None):
     """
     Obtains and displays pull requests.
     """
-    pullreqs = get_pull_requests(int(number))
+    pullreqs = get_pull_requests(number)
     if not pullreqs:
         print "Not results."
         return
@@ -489,7 +495,7 @@ if __name__ == '__main__':
                        verbose=args.verbose or (
                            args.number and args.number.isdigit()))
     elif args.diff:
-        get_pull_request_diff(_issue_number())
+        print get_pull_request_diff(_issue_number())
     elif args.newpull:
         create_pull_request(args.newpull[0])
     elif args.mergepull:
