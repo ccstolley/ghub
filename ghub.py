@@ -500,12 +500,8 @@ if __name__ == '__main__':
         create_issue()
     elif args.assign:
         if not args.number:
-            if args.assign and args.assign.isdigit():
-                number = int(args.assign)
-            else:
-                number = _issue_number()  # will cause prog to bail
-            assign_issue(number, None)  # use origin user
-        else:
-            assign_issue(number, args.assign)
+            (args.number, args.assign) = (args.assign, None)
+        assign_issue(_issue_number(), args.assign)
+
     else:
         parser.print_usage()
