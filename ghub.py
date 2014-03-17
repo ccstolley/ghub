@@ -315,7 +315,9 @@ def create_pull_request(base_branch):
     branch = get_branch()
     url = GITHUB_API_URL + '/repos/%s/%s/pulls' % (
         upstream_user, upstream_repo)
-
+    textlines = get_text_from_editor(
+        "%s\n\n%s" % (subj, body), list_format=True)
+    (subj, body) = textlines[0], '\n'.join(textlines[1:])
     data = json.dumps({'title': subj, 'body': body,
                        'head': ":".join((user, branch)), 'base': base_branch})
     result = make_github_request(url, data,
