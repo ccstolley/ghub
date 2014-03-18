@@ -58,6 +58,7 @@ def make_github_request(*args, **kwargs):
     """
     token = get_api_token()
     method = kwargs.pop('method', None)
+    verbose = kwargs.pop('verbose', None)
     kwargs.setdefault('headers', {}).update(
         {'Authorization': 'token %s' % token,
          'User-agent': 'ccstolley-ghub'})
@@ -73,10 +74,15 @@ def make_github_request(*args, **kwargs):
         print json.dumps(json.loads(e.read()), indent=2)
         raise SystemExit
     content_type = urlstream.headers['content-type']
+    data = urlstream.read()
+    if verbose:
+        print urlstream.headers
+        print urlstream.getcode()
+        print data
     if content_type.split(';')[0] == ('application/json'):
-        return json.loads(urlstream.read())
+        return json.loads(data)
     else:
-        return urlstream.read()
+        return data
 
 
 def get_api_token():
@@ -94,7 +100,8 @@ def get_branch():
     if branch_name:
         return branch_name.strip().replace("refs/heads/", "")
     else:
-        return None
+        print "ERROR: detached HEAD"
+        raise SystemExit
 
 
 def get_repo_and_user(remote_name='origin'):
@@ -112,7 +119,14 @@ def get_repo_and_user(remote_name='origin'):
                 user_name_repo = user_name_repo[1:]
             user_name, repo = user_name_repo.split('/')
             repo = repo.replace('.git', '')
-            return user_name, repo
+            break
+    else:
+        print ("ERROR: Unable to determine repo.\n"
+               "Are you not in a git repo, or is your head detached?")
+        raise SystemExit
+
+    return user_name, repo
+     
 
 
 def get_lead_commit(base_branch):
@@ -139,15 +153,11 @@ def get_pull_requests(number):
     number == None. Returns a dictionary or list of dictionaries.
     """
     branch = get_branch()
-    if branch is None:
-        print 'ERROR: detached head'
-        sys.exit(1)
-    else:
-        user, repo = get_repo_and_user('upstream')
-        url = GITHUB_API_URL + '/repos/%s/%s/pulls' % (user, repo)
-        if number:
-            url += '/%d' % number
-        return make_github_request(url)
+    user, repo = get_repo_and_user('upstream')
+    url = GITHUB_API_URL + '/repos/%s/%s/pulls' % (user, repo)
+    if number:
+        url += '/%d' % int(number)
+    return make_github_request(url)
 
 
 def get_issues(filterby):
@@ -183,6 +193,9 @@ def display_pull_requests(verbose=False, number=None):
     Obtains and displays pull requests.
     """
     pullreqs = get_pull_requests(number)
+    if not pullreqs:
+        print "Not results."
+        return
     if number:
         pullreqs = (pullreqs, )
     for pr in pullreqs:
@@ -224,9 +237,10 @@ def print_tuple(a, b, a_color='white', b_color='white'):
     """
     Formats string arguments a and b for display on screen in two columns.
     """
+    b = b if b is not None else 'None'
     print '%25s : %s' % (
         colored(a, a_color, attrs=['bold']),
-        colored(b, b_color))
+        colored(b.encode('ascii', 'replace'), b_color))
 
 
 def get_pull_request_comments(number):
@@ -413,51 +427,89 @@ def post_issue_comment(number):
         print "Something bad happened: " + str(result)
 
 
+def assign_issue(number, assignee):
+    """
+    Assigns issue number to assignee
+    PATCH /repos/:owner/:repo/issues/:number
+    """
+    (upstream_user, upstream_repo) = get_repo_and_user('upstream')
+    if not assignee:
+        (assignee, _ ) = get_repo_and_user('origin')
+    data = json.dumps({'assignee': assignee})
+    url = GITHUB_API_URL + '/repos/%s/%s/issues/%d' % (
+        upstream_user, upstream_repo, number)
+    result = make_github_request(
+        url, data, method='PATCH', 
+        headers={'content-type': 'application/json'})
+    if 'assignee' in result:
+        print "Assigned # %d to %s" % (result['number'],
+                                       result['assignee']['login'])
+    else:
+        print "Something bad happened: " + str(result)
+
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(
         description='command line interface to github')
+    parser.add_argument("number", nargs='?', type=str, help="optional issue/PR number/login")
     parser.add_argument(
-        '-i', '--showissue', metavar='number', nargs='?', type=str,
-        help='show issue #, or show all for specified user', default=0)
+        '-i', '--showissue', action="store_true",
+        help='show issue #, or show all for specified user')
     parser.add_argument(
-        '-p', '--showpull', metavar='number', nargs='?', type=int,
-        help='show pull request # or show all', default=0)
+        '-p', '--showpull', action="store_true",
+        help='show pull request # or show all')
     parser.add_argument(
-        '-d', '--diff', metavar='number', nargs=1, type=int,
+        '-d', '--diff', action="store_true", 
         help='show diff for pull request #')
     parser.add_argument(
-        '-n', '--newpull', help='create a new pull request from the current '
-        'branch to base_branch',
-        metavar='base_branch', nargs=1)
+        '-n', '--newpull',
+        help='create a new pull request from the current '
+        'branch to base_branch', metavar='base', nargs=1)
     parser.add_argument(
-        '-m', '--mergepull', help='merge pull request #', type=int,
-        metavar='number', nargs=1)
+        '-m', '--mergepull', help='merge pull request #', action="store_true")
     parser.add_argument(
-        '-c', '--comment', help='post comment on issue #', type=int,
-        metavar='number', nargs=1)
+        '-c', '--comment', help='post comment on issue #',
+        action="store_true")
     parser.add_argument(
-        '-a', '--addissue', help='create a new issue', action='store_true')
+        '-o', '--openissue', help='create a new issue', action='store_true')
+    parser.add_argument(
+        '-a', '--assign', help='assign an issue to login', metavar='login',
+        nargs='?', type=str, default='')
     parser.add_argument(
         '-v', '--verbose', help='be verbose', action='store_true')
     args = parser.parse_args()
 
-    if args.showpull is not 0:
-        display_pull_requests(number=args.showpull,
-                              verbose=args.verbose or args.showpull)
-    elif args.showissue is not 0:
-        display_issues(filterby=args.showissue,
+    def _issue_number(optional=False):
+        if args.number and args.number.isdigit():
+            return int(args.number)
+        elif args.number is None and optional:
+            return None
+        else:
+            print "Must specify a numeric issue/PR #"
+            parser.print_usage()
+            raise SystemExit
+            
+    if args.showpull:
+        display_pull_requests(number=_issue_number(optional=True),
+                              verbose=args.verbose or args.number)
+    elif args.showissue:
+        display_issues(filterby=args.number,
                        verbose=args.verbose or (
-                           args.showissue and args.showissue.isdigit()))
+                           args.number and args.number.isdigit()))
     elif args.diff:
-        print get_pull_request_diff(args.diff[0])
+        print get_pull_request_diff(_issue_number())
     elif args.newpull:
         create_pull_request(args.newpull[0])
     elif args.mergepull:
-        merge_pull_request(args.mergepull[0])
+        merge_pull_request(_issue_number())
     elif args.comment:
-        post_issue_comment(args.comment[0])
-    elif args.addissue:
+        post_issue_comment(_issue_number())
+    elif args.openissue:
         create_issue()
+    elif args.assign:
+        if not args.number:
+            (args.number, args.assign) = (args.assign, None)
+        assign_issue(_issue_number(), args.assign)
+
     else:
         parser.print_usage()
