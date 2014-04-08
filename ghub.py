@@ -134,8 +134,10 @@ def get_lead_commit(base_branch):
     Retreives the sha1 and subject of the first commit to appear
     on this branch (but not on base branch).
     """
-    commit = git_cmd(("cherry -v " +
-                      base_branch).split()).splitlines()[0].split()
+    commit = git_cmd(("cherry -v " + base_branch).split())
+    if not commit and get_branch() == base_branch:
+        commit = git_cmd(("cherry -v").split())
+    commit = commit.splitlines()[0].split()
     return (commit[1], ' '.join(commit[2:]))
 
 
