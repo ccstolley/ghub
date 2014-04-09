@@ -70,7 +70,7 @@ def make_github_request(*args, **kwargs):
     except urllib2.HTTPError as e:
         if e.getcode() == 404:
             return []
-        print "%d %s" % (e.getcode(), e.reason)
+        print "%d %s" % (e.getcode(), e.geturl())
         print json.dumps(json.loads(e.read()), indent=2)
         raise SystemExit
     content_type = urlstream.headers['content-type']
