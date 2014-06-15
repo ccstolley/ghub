@@ -89,8 +89,12 @@ def get_api_token():
     """
     Retrieve the API token.
     """
-    return git_cmd("config --get github.token".split())
-
+    token = git_cmd("config --get github.token".split())
+    if not token:
+        print ("Unable to find github token. Run:\n\t" 
+            "git config --global github.token <github personal access token>")
+        raise SystemExit
+    return token
 
 def get_branch():
     """
@@ -114,6 +118,10 @@ def get_repo_and_user(remote_name='origin'):
         line = line.strip()
         if line.startswith(ORIGIN_LINE_START):
             origin_line = line[len(ORIGIN_LINE_START):].strip()
+            if origin_line.find(':') < 1:
+                print ("Unable to find remote repo named '%s'. Run:\n\t"
+                       "git remote add %s ..." % (remote_name, remote_name))
+                raise SystemExit
             _, user_name_repo = origin_line.split(':')
             while user_name_repo.startswith('/'):
                 user_name_repo = user_name_repo[1:]
