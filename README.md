@@ -11,7 +11,8 @@ A command line interface for github
 
 `ghub` is a simple command line utility for facilitating common
 tasks with github. It uses the repository found in the current
-working directory to determine upstream and origin URLs.
+working directory to determine `upstream` and  `origin` URLs. You
+can also use a single `origin` repo if you prefer.
 
 More exhaustive tools exist (see http://hub.github.com for one
 example). This tool is intended to be simple, fast and have few
@@ -28,23 +29,25 @@ This tool is a work in progress.
    ```
    git config --global github.token <token value>
    ```
-3. Create remote repositories for `upstream` and `origin`. Eg.:
+3. Install ghub:
+    ```
+    git clone git@github.com:ccstolley/ghub
+    cd ghub
+    python ./setup.py install
+    ```
+4. Create remote repositories for `upstream` and `origin`. Eg.:
     ```
     git remote add origin git@github.com:joesmith/ghub
 
+    # optional
     git remote add upstream git@github.com:ccstolley/ghub
     ```
-4. Add an alias for ghub.py to make it easier to invoke from the
-   shell. Eg., in tcsh:
-    ```
-    alias ghub python ${HOME}/stuff/ghub/ghub.py
-    ```
-5. Go drink beer.
+5. Drink a beer.
 
 ## Usage
 ```
-usage: ghub.py [-h] [-i [number]] [-p [number]] [-d number] [-n base_branch]
-               [-m number] [-c number] [-v]
+usage: ghub [-h] [-i [number]] [-p [number]] [-d number] [-n base_branch]
+            [-m number] [-c number] [-v]
 
 command line interface to github
 
