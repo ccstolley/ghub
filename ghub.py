@@ -460,7 +460,8 @@ def assign_issue(number, assignee):
     else:
         print "Something bad happened: " + str(result)
 
-if __name__ == '__main__':
+
+def main():
     import argparse
     parser = argparse.ArgumentParser(
         description='command line interface to github')
@@ -526,3 +527,8 @@ if __name__ == '__main__':
 
     else:
         parser.print_usage()
+
+
+if __name__ == '__main__':
+    main()
+
