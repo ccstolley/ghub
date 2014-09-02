@@ -108,38 +108,41 @@ def get_branch():
         raise SystemExit
 
 
-def get_repo_and_user(remote_name='origin'):
+def get_repo_and_user(remote_name='origin', alt_name=None):
     """
     Call git remote to retrieve the repo and user for the specified
     remote name. Typical values are 'upstream' and 'origin'.
-    """
-    origin = git_cmd(('remote show -n ' + remote_name).split())
-    for line in origin.splitlines():
-        line = line.strip()
-        if line.startswith(ORIGIN_LINE_START):
-            origin_line = line[len(ORIGIN_LINE_START):].strip()
-            if origin_line.find(':') < 1:
-                print ("Unable to find remote repo named '%s'. Run:\n\t"
-                       "git remote add %s ..." % (remote_name, remote_name))
-                raise SystemExit
-            _, user_name_repo = origin_line.split(':')
-            while user_name_repo.startswith('/'):
-                user_name_repo = user_name_repo[1:]
-            user_name, repo = user_name_repo.split('/')
-            repo = repo.replace('.git', '')
-            break
-    else:
-        print ("ERROR: Unable to determine repo.\n"
-               "Are you not in a git repo, or is your head detached?")
-        raise SystemExit
 
+    If alt_name is supplied, use it as an alternative repo name if
+    remote_name is not found.
+    """
+    def get_repo_line(cmd_output):
+        for line in cmd_output.splitlines():
+            line = line.strip()
+            if line.startswith(ORIGIN_LINE_START):
+                return line[len(ORIGIN_LINE_START):].strip()
+
+    repo_line = get_repo_line(git_cmd(('remote show -n ' +
+                                       remote_name).split()))
+    if repo_line.find(':') < 1 and alt_name is not None:
+        repo_line = get_repo_line(git_cmd(('remote show -n ' +
+                                           alt_name).split()))
+    if repo_line.find(':') < 1:
+        print ("Unable to find remote repo named '%s'. Run:\n\t"
+               "git remote add %s ..." % (remote_name, remote_name))
+        raise SystemExit
+    else:
+        _, user_name_repo = repo_line.split(':')
+        while user_name_repo.startswith('/'):
+            user_name_repo = user_name_repo[1:]
+        user_name, repo = user_name_repo.split('/')
+        repo = repo.replace('.git', '')
     return user_name, repo
      
 
-
 def get_lead_commit(base_branch):
     """
-    Retreives the sha1 and subject of the first commit to appear
+    Retreive the sha1 and subject of the first commit to appear
     on this branch (but not on base branch).
     """
     commit = git_cmd(("cherry -v " + base_branch).split())
@@ -151,7 +154,7 @@ def get_lead_commit(base_branch):
 
 def get_commit_message_body(commit_sha1):
     """
-    Returns commit message body (no subject) for the given sha1.
+    Return commit message body (no subject) for the given sha1.
     """
     cmd = "log --format=%b -n 1 " + commit_sha1
     return git_cmd(cmd.split())
@@ -159,11 +162,11 @@ def get_commit_message_body(commit_sha1):
 
 def get_pull_requests(number):
     """
-    Retreives a specific pull request or all pull requests if
-    number == None. Returns a dictionary or list of dictionaries.
+    Retreive a specific pull request or all pull requests if
+    number == None. Return a dictionary or list of dictionaries.
     """
     branch = get_branch()
-    user, repo = get_repo_and_user('upstream')
+    user, repo = get_repo_and_user('upstream', 'origin')
     url = GITHUB_API_URL + '/repos/%s/%s/pulls' % (user, repo)
     if number:
         url += '/%d' % int(number)
@@ -172,10 +175,10 @@ def get_pull_requests(number):
 
 def get_issues(filterby):
     """
-    Retreives issues from github. Filters by either a specific
-    number or assignee. Returns a dictionary or list of dictionaries.
+    Retreive issues from github. Filter by either a specific
+    number or assignee. Return a dictionary or list of dictionaries.
     """
-    upstream_user, repo = get_repo_and_user('upstream')
+    upstream_user, repo = get_repo_and_user('upstream', 'origin')
     url = GITHUB_API_URL + '/repos/%s/%s/issues' % (upstream_user, repo)
     if filterby and filterby.isdigit():
         url += '/%d' % int(filterby)
@@ -183,16 +186,16 @@ def get_issues(filterby):
         if filterby:
             assignee = filterby
         else:
-            assignee = get_repo_and_user('origin')[0]
+            assignee, _ = get_repo_and_user('origin')
         url += '?assignee=' + urllib2.quote(assignee)
     return make_github_request(url)
 
 
 def get_pull_request_diff(number):
     """
-    Retrieves diff of specified pull request. Returns a string.
+    Retrieve diff of specified pull request. Return a string.
     """
-    user, repo = get_repo_and_user('upstream')
+    user, repo = get_repo_and_user('upstream', 'origin')
     url = GITHUB_API_URL + '/repos/%s/%s/pulls/%s' % (user, repo, number)
     return make_github_request(
         url, headers={'accept': 'application/vnd.github.diff'})
@@ -200,7 +203,7 @@ def get_pull_request_diff(number):
 
 def display_pull_requests(verbose=False, number=None):
     """
-    Obtains and displays pull requests.
+    Obtain and display pull requests.
     """
     pullreqs = get_pull_requests(number)
     if not pullreqs:
@@ -215,7 +218,7 @@ def display_pull_requests(verbose=False, number=None):
 
 def display_issues(filterby, verbose=False):
     """
-    Obtains and displays issues.
+    Obtain and display issues.
     """
     issues = get_issues(filterby)
     if filterby and filterby.isdigit():
@@ -226,7 +229,7 @@ def display_issues(filterby, verbose=False):
 
 def colored(text, color, attrs=None):
     """
-    Colorizes specified text.
+    Colorize specified text.
     """
     colormap = dict(zip(
         ['grey', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan',
@@ -245,7 +248,7 @@ def colored(text, color, attrs=None):
 
 def print_tuple(a, b, a_color='white', b_color='white'):
     """
-    Formats string arguments a and b for display on screen in two columns.
+    Format string arguments a and b for display on screen in two columns.
     """
     b = b if b is not None else 'None'
     print '%25s : %s' % (
@@ -255,10 +258,10 @@ def print_tuple(a, b, a_color='white', b_color='white'):
 
 def get_pull_request_comments(number):
     """
-    Retreives pull request comments and issue comments from the
+    Retreive pull request comments and issue comments from the
     specified issue/pr number.
     """
-    user, repo = get_repo_and_user('upstream')
+    user, repo = get_repo_and_user('upstream', 'origin')
     url = GITHUB_API_URL + '/repos/%s/%s/issues/%d/comments' % (
         user, repo, number)
     issue_comments = make_github_request(url)
@@ -270,7 +273,7 @@ def get_pull_request_comments(number):
 
 def print_pull_request_comments(comment_obj):
     """
-    Obtains and displays pr comments on the console.
+    Obtain and display pr comments on the console.
     """
     if isinstance(comment_obj, int):
         comments = get_pull_request_comments(comment_obj)
@@ -290,7 +293,7 @@ def print_pull_request_comments(comment_obj):
 
 def print_pull_request(pr, verbose):
     """
-    Displays pull requests or issues on screen.
+    Display pull requests or issues on screen.
     """
     if verbose:
         print_tuple('Title', '#%s %s' % (pr['number'], pr['title']),
@@ -332,7 +335,7 @@ def create_pull_request(base_branch):
     Creates a new pull request from the commits in the current branch against
     the supplied base branch in upstream.
     """
-    (upstream_user, upstream_repo) = get_repo_and_user('upstream')
+    (upstream_user, upstream_repo) = get_repo_and_user('upstream', 'origin')
     (user, _) = get_repo_and_user('origin')
     (sha1, subj) = get_lead_commit(base_branch)
     body = get_commit_message_body(sha1)
@@ -373,7 +376,7 @@ def merge_pull_request(number):
     """
     Prompt for a comment and merge specified pull request.
     """
-    (upstream_user, upstream_repo) = get_repo_and_user('upstream')
+    (upstream_user, upstream_repo) = get_repo_and_user('upstream', 'origin')
     commit_msg = get_text_from_editor("\n# Enter merge comments for PR %d" %
                                       number)
     if not commit_msg:
@@ -394,7 +397,7 @@ def create_issue():
     Create a new issue. Open editor and read title from first line and body
     from subsequent lines.
     """
-    (upstream_user, upstream_repo) = get_repo_and_user('upstream')
+    (upstream_user, upstream_repo) = get_repo_and_user('upstream', 'origin')
     issue_text = get_text_from_editor(
         "\n# Enter issue title on the first line. Lines starting with '#' "
         "\n# will be ignored and an empty message aborts the issue creation.",
@@ -425,7 +428,7 @@ def post_issue_comment(number):
     if not msg:
         print "No comments: Aborting."
         raise SystemExit
-    (upstream_user, upstream_repo) = get_repo_and_user('upstream')
+    (upstream_user, upstream_repo) = get_repo_and_user('upstream', 'origin')
     url = GITHUB_API_URL + '/repos/%s/%s/issues/%d/comments' % (
         upstream_user, upstream_repo, number)
     data = json.dumps({'body': msg})
@@ -442,7 +445,7 @@ def assign_issue(number, assignee):
     Assigns issue number to assignee
     PATCH /repos/:owner/:repo/issues/:number
     """
-    (upstream_user, upstream_repo) = get_repo_and_user('upstream')
+    (upstream_user, upstream_repo) = get_repo_and_user('upstream', 'origin')
     if not assignee:
         (assignee, _ ) = get_repo_and_user('origin')
     data = json.dumps({'assignee': assignee})
