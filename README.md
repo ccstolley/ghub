@@ -32,7 +32,9 @@ This tool is a work in progress.
 3. Install ghub:
     ```
     git clone git@github.com:ccstolley/ghub
+    
     cd ghub
+    
     python ./setup.py install
     ```
 4. Create remote repositories for `upstream` and `origin`. Eg.:
