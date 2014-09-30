@@ -6,17 +6,20 @@ Make sure to run these first:
     git remote add upstream git@github.com:owner/repo
     git remote add origin git@github.com:username/repo
 """
-import urllib2
+from operator import itemgetter
+import fcntl
+import httplib
+import json
+import os
+import socket
+import ssl
+import struct
 import sys
 import subprocess
-import json
 import tempfile
-import os
-import textwrap
-from operator import itemgetter
 import termios
-import struct
-import fcntl
+import textwrap
+import urllib2
 
 GITHUB_API_URL = 'https://api.github.com'
 ORIGIN_LINE_START = 'Push  URL:'
@@ -24,10 +27,60 @@ GIT_EXECUTABLE = subprocess.Popen(
     r'which \git', shell=True, stdout=subprocess.PIPE).communicate()[0].strip()
 
 
+class SafeHTTPSConnection(httplib.HTTPConnection):
+
+    """
+    Provide an HTTPS connection which verifies certificate validity.
+
+    Uses default system ca cert files for verification.
+    """
+
+    ca_cert_file_locations = (
+        '/etc/ssl/cert.pem', '/etc/ssl/certs/ca-certificates.crt',
+        '/usr/local/share/certs/ca-root-nss.crt',
+        '/etc/ssl/certs/ca-bundle.trust.crt')
+    default_port = 443
+
+    def __init__(self, host, port=None, strict=None,
+                 timeout=socket._GLOBAL_DEFAULT_TIMEOUT):
+        """Initialize SafeHTTPSConnection."""
+        httplib.HTTPConnection.__init__(self, host, port, strict, timeout)
+
+    def get_ca_certs_file(self):
+        """
+        Try to find a ca-certificates file in the usual places.
+
+        If a valid certificates file can't be found, the program exits.
+        """
+        for certsfile in self.ca_cert_file_locations:
+            if os.path.isfile(certsfile):
+                return certsfile
+        print "FATAL: Unable to verify SSL certificate validity."
+        raise SystemExit
+
+    def connect(self):
+        """Connect to a host on a given (SSL) port."""
+        sock = socket.create_connection((self.host, self.port), self.timeout)
+        if self._tunnel_host:
+            self.sock = sock
+            self._tunnel()
+        self.sock = ssl.wrap_socket(
+            sock, ca_certs=self.get_ca_certs_file(),
+            cert_reqs=ssl.CERT_REQUIRED)
+
+
+class SafeHTTPSHandler(urllib2.HTTPSHandler):
+
+    def https_open(self, req):
+        return self.do_open(SafeHTTPSConnection, req)
+
+
+opener = urllib2.build_opener(SafeHTTPSHandler)
+urllib2.install_opener(opener)
+
+
 def git_cmd(args):
-    """
-    Executes git with the supplied arguments.
-    """
+    """Execute git with the supplied arguments."""
     result, _ = subprocess.Popen(
         [GIT_EXECUTABLE, ] + args, shell=False, stdout=subprocess.PIPE,
         stderr=subprocess.PIPE).communicate()
@@ -35,27 +88,21 @@ def git_cmd(args):
 
 
 def get_console_width():
-    """
-    Obtain the current width of the console window.
-    """
+    """Obtain the current width of the console window."""
     result = struct.unpack('hhhh', fcntl.ioctl(
         0, termios.TIOCGWINSZ, struct.pack('HHHH', 0, 0, 0, 0)))
     return result[1]
 
 
 def wrap_to_console(text):
-    """
-    Wraps text to console width. For now, we won't cache the width value.
-    """
+    """Wrap text to console width."""
     width = max(get_console_width() - 16, 52)
     return textwrap.wrap(text, width, replace_whitespace=False,
                          break_long_words=False, break_on_hyphens=False)
 
 
 def make_github_request(*args, **kwargs):
-    """
-    Send an authorization token in a github api request.
-    """
+    """Send an authorization token in a github api request."""
     token = get_api_token()
     method = kwargs.pop('method', None)
     verbose = kwargs.pop('verbose', None)
@@ -73,6 +120,9 @@ def make_github_request(*args, **kwargs):
         print "%d %s" % (e.getcode(), e.geturl())
         print json.dumps(json.loads(e.read()), indent=2)
         raise SystemExit
+    except urllib2.URLError as e:
+        print e.reason  # probably an ssl error
+        raise SystemExit
     content_type = urlstream.headers['content-type']
     data = urlstream.read()
     if verbose:
@@ -86,20 +136,18 @@ def make_github_request(*args, **kwargs):
 
 
 def get_api_token():
-    """
-    Retrieve the API token.
-    """
+    """Retrieve the API token."""
     token = git_cmd("config --get github.token".split())
     if not token:
-        print ("Unable to find github token. Run:\n\t" 
-            "git config --global github.token <github personal access token>")
+        print ("Unable to find github token. Run:\n\t"
+               "git config --global github.token <github "
+               "personal access token>")
         raise SystemExit
     return token
 
+
 def get_branch():
-    """
-    Get the current local branch.
-    """
+    """Get the current local branch."""
     branch_name = git_cmd("symbolic-ref HEAD".split())
     if branch_name:
         return branch_name.strip().replace("refs/heads/", "")
@@ -110,11 +158,11 @@ def get_branch():
 
 def get_repo_and_user(remote_name='origin', alt_name=None):
     """
-    Call git remote to retrieve the repo and user for the specified
-    remote name. Typical values are 'upstream' and 'origin'.
+    Retrieve the repo and user for the specified remote name.
 
-    If alt_name is supplied, use it as an alternative repo name if
-    remote_name is not found.
+    Typical values are 'upstream' and 'origin'. If alt_name is
+    supplied, use it as an alternative repo name if remote_name is
+    not found.
     """
     def get_repo_line(cmd_output):
         for line in cmd_output.splitlines():
@@ -138,13 +186,10 @@ def get_repo_and_user(remote_name='origin', alt_name=None):
         user_name, repo = user_name_repo.split('/')
         repo = repo.replace('.git', '')
     return user_name, repo
-     
+
 
 def get_lead_commit(base_branch):
-    """
-    Retreive the sha1 and subject of the first commit to appear
-    on this branch (but not on base branch).
-    """
+    """Retreieve the first commit to appear only on this branch."""
     commit = git_cmd(("cherry -v " + base_branch).split())
     if not commit and get_branch() == base_branch:
         commit = git_cmd(("cherry -v").split())
@@ -153,9 +198,7 @@ def get_lead_commit(base_branch):
 
 
 def get_commit_message_body(commit_sha1):
-    """
-    Return commit message body (no subject) for the given sha1.
-    """
+    """Return commit message body (no subject) for the given sha1."""
     cmd = "log --format=%b -n 1 " + commit_sha1
     return git_cmd(cmd.split())
 
@@ -165,7 +208,6 @@ def get_pull_requests(number):
     Retreive a specific pull request or all pull requests if
     number == None. Return a dictionary or list of dictionaries.
     """
-    branch = get_branch()
     user, repo = get_repo_and_user('upstream', 'origin')
     url = GITHUB_API_URL + '/repos/%s/%s/pulls' % (user, repo)
     if number:
@@ -175,8 +217,10 @@ def get_pull_requests(number):
 
 def get_issues(filterby):
     """
-    Retreive issues from github. Filter by either a specific
-    number or assignee. Return a dictionary or list of dictionaries.
+    Retreive issues from github.
+
+    Filter by either a specific number or assignee. Return a
+    dictionary or list of dictionaries.
     """
     upstream_user, repo = get_repo_and_user('upstream', 'origin')
     url = GITHUB_API_URL + '/repos/%s/%s/issues' % (upstream_user, repo)
@@ -193,7 +237,9 @@ def get_issues(filterby):
 
 def get_pull_request_diff(number):
     """
-    Retrieve diff of specified pull request. Return a string.
+    Retrieve diff of specified pull request.
+
+    Return a string.
     """
     user, repo = get_repo_and_user('upstream', 'origin')
     url = GITHUB_API_URL + '/repos/%s/%s/pulls/%s' % (user, repo, number)
@@ -202,9 +248,7 @@ def get_pull_request_diff(number):
 
 
 def display_pull_requests(verbose=False, number=None):
-    """
-    Obtain and display pull requests.
-    """
+    """Obtain and display pull requests."""
     pullreqs = get_pull_requests(number)
     if not pullreqs:
         print "Not results."
@@ -217,9 +261,7 @@ def display_pull_requests(verbose=False, number=None):
 
 
 def display_issues(filterby, verbose=False):
-    """
-    Obtain and display issues.
-    """
+    """Obtain and display issues."""
     issues = get_issues(filterby)
     if filterby and filterby.isdigit():
         issues = (issues, )
@@ -228,9 +270,7 @@ def display_issues(filterby, verbose=False):
 
 
 def colored(text, color, attrs=None):
-    """
-    Colorize specified text.
-    """
+    """Colorize specified text."""
     colormap = dict(zip(
         ['grey', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan',
          'white', ], range(30, 38)))
@@ -247,9 +287,7 @@ def colored(text, color, attrs=None):
 
 
 def print_tuple(a, b, a_color='white', b_color='white'):
-    """
-    Format string arguments a and b for display on screen in two columns.
-    """
+    """Format string arguments a and b for display on screen in two columns."""
     b = b if b is not None else 'None'
     print '%25s : %s' % (
         colored(a, a_color, attrs=['bold']),
@@ -272,9 +310,7 @@ def get_pull_request_comments(number):
 
 
 def print_pull_request_comments(comment_obj):
-    """
-    Obtain and display pr comments on the console.
-    """
+    """Obtain and display pr comments on the console."""
     if isinstance(comment_obj, int):
         comments = get_pull_request_comments(comment_obj)
     else:
@@ -292,9 +328,7 @@ def print_pull_request_comments(comment_obj):
 
 
 def print_pull_request(pr, verbose):
-    """
-    Display pull requests or issues on screen.
-    """
+    """Display pull requests or issues on screen."""
     if verbose:
         print_tuple('Title', '#%s %s' % (pr['number'], pr['title']),
                     b_color='yellow')
@@ -332,7 +366,7 @@ def print_pull_request(pr, verbose):
 
 def create_pull_request(base_branch):
     """
-    Creates a new pull request from the commits in the current branch against
+    Create a new pull request from the commits in the current branch against
     the supplied base branch in upstream.
     """
     (upstream_user, upstream_repo) = get_repo_and_user('upstream', 'origin')
@@ -357,25 +391,21 @@ def create_pull_request(base_branch):
 
 
 def get_text_from_editor(def_text, list_format=False):
-    """
-    Run the default text editor and return the text entered.
-    """
+    """Run the default text editor and return the text entered."""
     tmp = tempfile.mktemp()
     open(tmp, "w").write(def_text)
     editor = os.environ.get("EDITOR", "vim")
     os.system("%s %s" % (editor, tmp))
     if list_format:
         return [k.rstrip() for k in open(tmp).read().splitlines()
-                      if not (k.startswith("#") or k.rstrip() == '')]
+                if not (k.startswith("#") or k.rstrip() == '')]
     else:
         return "\n".join([k.rstrip() for k in open(tmp).read().splitlines()
-                      if not (k.startswith("#") or k.rstrip() == '')])
+                          if not (k.startswith("#") or k.rstrip() == '')])
 
 
 def merge_pull_request(number):
-    """
-    Prompt for a comment and merge specified pull request.
-    """
+    """Prompt for a comment and merge specified pull request."""
     (upstream_user, upstream_repo) = get_repo_and_user('upstream', 'origin')
     commit_msg = get_text_from_editor("\n# Enter merge comments for PR %d" %
                                       number)
@@ -392,10 +422,13 @@ def merge_pull_request(number):
     else:
         print "Sorry, something bad happened: " + str(result)
 
+
 def create_issue():
     """
-    Create a new issue. Open editor and read title from first line and body
-    from subsequent lines.
+    Create a new issue.
+
+    Open editor and read title from first line and body from
+    subsequent lines.
     """
     (upstream_user, upstream_repo) = get_repo_and_user('upstream', 'origin')
     issue_text = get_text_from_editor(
@@ -421,7 +454,8 @@ def create_issue():
 
 def post_issue_comment(number):
     """
-    Posts a comment to an issue.
+    Post a comment to an issue.
+
     POST /repos/:owner/:repo/issues/:number/comments
     """
     msg = get_text_from_editor("\n# Enter comments for issue %d" % number)
@@ -442,17 +476,18 @@ def post_issue_comment(number):
 
 def assign_issue(number, assignee):
     """
-    Assigns issue number to assignee
+    Assign issue number to assignee.
+
     PATCH /repos/:owner/:repo/issues/:number
     """
     (upstream_user, upstream_repo) = get_repo_and_user('upstream', 'origin')
     if not assignee:
-        (assignee, _ ) = get_repo_and_user('origin')
+        (assignee, _) = get_repo_and_user('origin')
     data = json.dumps({'assignee': assignee})
     url = GITHUB_API_URL + '/repos/%s/%s/issues/%d' % (
         upstream_user, upstream_repo, number)
     result = make_github_request(
-        url, data, method='PATCH', 
+        url, data, method='PATCH',
         headers={'content-type': 'application/json'})
     if 'assignee' in result:
         print "Assigned # %d to %s" % (result['number'],
@@ -465,7 +500,8 @@ def main():
     import argparse
     parser = argparse.ArgumentParser(
         description='command line interface to github')
-    parser.add_argument("number", nargs='?', type=str, help="optional issue/PR number/login")
+    parser.add_argument("number", nargs='?', type=str,
+                        help="optional issue/PR number/login")
     parser.add_argument(
         '-i', '--showissue', action="store_true",
         help='show issue #, or show all for specified user')
@@ -473,7 +509,7 @@ def main():
         '-p', '--showpull', action="store_true",
         help='show pull request # or show all')
     parser.add_argument(
-        '-d', '--diff', action="store_true", 
+        '-d', '--diff', action="store_true",
         help='show diff for pull request #')
     parser.add_argument(
         '-n', '--newpull',
@@ -502,7 +538,7 @@ def main():
             print "Must specify a numeric issue/PR #"
             parser.print_usage()
             raise SystemExit
-            
+
     if args.showpull:
         display_pull_requests(number=_issue_number(optional=True),
                               verbose=args.verbose or args.number)
@@ -530,5 +566,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
-
+    sys.exit(main())
