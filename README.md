@@ -1,7 +1,7 @@
 ghub
 ====
 
-A command line interface for github
+A command line interface for github.
 
 ## Requirements
 
