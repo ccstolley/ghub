@@ -38,7 +38,8 @@ class SafeHTTPSConnection(httplib.HTTPConnection):
     ca_cert_file_locations = (
         '/etc/ssl/cert.pem', '/etc/ssl/certs/ca-certificates.crt',
         '/usr/local/share/certs/ca-root-nss.crt',
-        '/etc/ssl/certs/ca-bundle.trust.crt')
+        '/etc/ssl/certs/ca-bundle.trust.crt',
+        '/usr/local/etc/openssl/cert.pem')
     default_port = 443
 
     def __init__(self, host, port=None, strict=None,
