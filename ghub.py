@@ -25,6 +25,7 @@ GITHUB_API_URL = 'https://api.github.com'
 ORIGIN_LINE_START = 'Push  URL:'
 GIT_EXECUTABLE = subprocess.Popen(
     r'which \git', shell=True, stdout=subprocess.PIPE).communicate()[0].strip()
+GIT_CONFIG_TOKEN = 'github.token'
 
 
 class SafeHTTPSConnection(httplib.HTTPConnection):
@@ -138,7 +139,7 @@ def make_github_request(*args, **kwargs):
 
 def get_api_token():
     """Retrieve the API token."""
-    token = git_cmd("config --get github.token".split())
+    token = git_cmd("config --get".split() + [GIT_CONFIG_TOKEN])
     if not token:
         print ("Unable to find github token. Run:\n\t"
                "git config --global github.token <github "
