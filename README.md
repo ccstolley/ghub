@@ -1,6 +1,8 @@
 ghub
 ====
 
+https://travis-ci.org/ccstolley/ghub.svg?branch=master
+
 A command line interface for github.
 
 ## Requirements
