@@ -359,6 +359,8 @@ def print_pull_request(pr, verbose):
                     print_tuple('Body', '')
             for line in wrap_to_console(par):
                 print_tuple('', line)
+        else:
+            print "There is no description to this issue" 
         print
         print_pull_request_comments(pr['number'])
     else:
