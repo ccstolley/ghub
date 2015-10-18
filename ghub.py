@@ -351,10 +351,12 @@ def print_pull_request(pr, verbose):
             dels = colored("-%d" % pr['deletions'], 'red')
             print_tuple('Commits', "%d (%s, %s)" % (
                 pr['commits'], adds, dels))
-        paragraphs = pr['body'].splitlines()
-        for i, par in enumerate(paragraphs):
-            if i == 0:
-                print_tuple('Body', '')
+        # Added this condition in case a user does not enter any info to the body.
+        if pr['body']:
+            paragraphs = pr['body'].splitlines()
+            for i, par in enumerate(paragraphs):
+                if i == 0:
+                    print_tuple('Body', '')
             for line in wrap_to_console(par):
                 print_tuple('', line)
         print
