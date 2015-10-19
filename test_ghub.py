@@ -30,6 +30,71 @@ class TestGhubFunctions(unittest.TestCase):
     def test_get_branch(self):
         self.assertEqual(ghub.get_branch(), '__test__master')
 
+    def test_get_user_and_repo(self):
+        git_output = ('Fetch URL: git@github.com:ccstolley/ghub\n'
+                      'Push  URL: git@github.com:ccstolley/ghub\n'
+                      'HEAD branch: (not queried)\n')
+        with patch('ghub.git_cmd', lambda x: git_output):
+            self.assertEqual(ghub.get_user_and_repo(),
+                             ('ccstolley', 'ghub'))
+
+    def test_get_lead_commit(self):
+        git_output = (
+            '+ 7cec2b67173717c2dab0e62dfc27943851c40618 message\n'
+            '+ 2819029108291089090890890890943851c40892 what is\n')
+        with patch('ghub.git_cmd', lambda x: git_output):
+            self.assertEqual(
+                ghub.get_lead_commit('master'),
+                ('7cec2b67173717c2dab0e62dfc27943851c40618', 'message'))
+
+    @patch('ghub.git_cmd', lambda x: 'foobar\nfoobar2\n')
+    def test_get_commit_message_body(self):
+        self.assertEqual(
+            ghub.get_commit_message_body('23121aed'),
+            'foobar\nfoobar2\n')
+
+    @patch('ghub.make_github_request')
+    @patch('ghub.get_user_and_repo', lambda x, y: ('user1', 'repo1'))
+    def test_get_pull_requests(self, mock_req):
+        self.assertEqual(mock_req.return_value, ghub.get_pull_requests())
+        mock_req.assert_called_once_with(
+            'https://api.github.com/repos/user1/repo1/pulls')
+
+    @patch('ghub.make_github_request')
+    @patch('ghub.get_user_and_repo', lambda x, y: ('user1', 'repo1'))
+    def test_get_pull_requests__specific_number(self, mock_req):
+        self.assertEqual(mock_req.return_value, ghub.get_pull_requests(5))
+        mock_req.assert_called_once_with(
+            'https://api.github.com/repos/user1/repo1/pulls/5')
+
+    @patch('ghub.make_github_request')
+    @patch('ghub.get_user_and_repo', lambda *args: ('user1', 'repo1'))
+    def test_get_issues(self, mock_req):
+        self.assertEqual(mock_req.return_value, ghub.get_issues())
+        mock_req.assert_called_once_with(
+            'https://api.github.com/repos/user1/repo1/issues?assignee=user1')
+
+    @patch('ghub.make_github_request')
+    @patch('ghub.get_user_and_repo', lambda *args: ('user1', 'repo1'))
+    def test_get_issues__specific_number(self, mock_req):
+        self.assertEqual(mock_req.return_value, ghub.get_issues('4'))
+        mock_req.assert_called_once_with(
+            'https://api.github.com/repos/user1/repo1/issues/4')
+
+    @patch('ghub.make_github_request')
+    @patch('ghub.get_user_and_repo', lambda *args: ('user1', 'repo1'))
+    def test_get_pull_request_diff(self, mock_req):
+        self.assertEqual(mock_req.return_value, ghub.get_pull_request_diff(4))
+        mock_req.assert_called_once_with(
+            'https://api.github.com/repos/user1/repo1/pulls/4',
+            headers={'accept': 'application/vnd.github.diff'})
+
+
+
+
+
+        
+
 
 class TestGetApiToken(unittest.TestCase):
     def setUp(self):
