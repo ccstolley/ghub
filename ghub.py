@@ -193,7 +193,7 @@ def get_user_and_repo(remote_name='origin', alt_name=None):
 def get_lead_commit(base_branch):
     """Retreieve the first commit to appear only on this branch."""
     commit = git_cmd(("cherry -v " + base_branch).split())
-    if not commit and repobranch() == base_branch:
+    if not commit and get_branch() == base_branch:
         commit = git_cmd(("cherry -v").split())
     commit = commit.splitlines()[0].split()
     return (commit[1], ' '.join(commit[2:]))
