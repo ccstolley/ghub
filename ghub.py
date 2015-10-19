@@ -253,7 +253,7 @@ def display_pull_requests(verbose=False, number=None):
     """Obtain and display pull requests."""
     pullreqs = get_pull_requests(number)
     if not pullreqs:
-        print "Not results."
+        print "No results."
         return
     if number:
         pullreqs = (pullreqs, )

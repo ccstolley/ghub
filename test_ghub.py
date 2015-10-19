@@ -1,6 +1,6 @@
 import unittest
 import ghub
-import re
+from StringIO import StringIO
 from mock import patch
 
 class TestGhubFunctions(unittest.TestCase):
@@ -89,11 +89,19 @@ class TestGhubFunctions(unittest.TestCase):
             'https://api.github.com/repos/user1/repo1/pulls/4',
             headers={'accept': 'application/vnd.github.diff'})
 
+    @patch('sys.stdout', new_callable=StringIO)
+    @patch('ghub.get_pull_requests', lambda x: None)
+    def test_display_pull_requests__empty(self, mock_print):
+        ghub.display_pull_requests(1)
+        self.assertEqual(mock_print.getvalue(), 'No results.\n')
 
-
-
-
-        
+    @patch('sys.stdout', new_callable=StringIO)
+    @patch('ghub.get_pull_requests')
+    def test_display_pull_requests__number(self, mock_req, mock_print):
+        mock_req.return_value = {
+            'number':'1', 'title':'pr1', 'user': {'login': 'foo'}}
+        ghub.display_pull_requests(verbose=False, number=1)
+        self.assertRegexpMatches(mock_print.getvalue(), '#1 pr1')
 
 
 class TestGetApiToken(unittest.TestCase):
