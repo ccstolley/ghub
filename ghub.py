@@ -265,7 +265,10 @@ def display_pull_requests(verbose=False, number=None):
 def display_issues(filterby, verbose=False):
     """Obtain and display issues."""
     issues = get_issues(filterby)
-    if filterby and filterby.isdigit():
+    if not issues:
+        print "No results."
+        return
+    if filterby and str(filterby).isdigit():
         issues = (issues, )
     for issue in issues:
         print_pull_request(issue, verbose)

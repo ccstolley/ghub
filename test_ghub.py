@@ -103,6 +103,22 @@ class TestGhubFunctions(unittest.TestCase):
         ghub.display_pull_requests(verbose=False, number=1)
         self.assertRegexpMatches(mock_print.getvalue(), '#1 pr1')
 
+    @patch('sys.stdout', new_callable=StringIO)
+    @patch('ghub.get_issues', lambda x: [])
+    def test_display_issues__empty(self, mock_print):
+        ghub.display_issues('1')
+        self.assertEqual(mock_print.getvalue(), 'No results.\n')
+
+    @patch('sys.stdout', new_callable=StringIO)
+    @patch('ghub.get_issues')
+    def test_display_issues__number(self, mock_req, mock_print):
+        mock_req.return_value = {
+            'number':'1', 'title':'issue1', 'user': {'login': 'foo'}}
+        ghub.display_issues('1')
+        self.assertRegexpMatches(mock_print.getvalue(), '#1 issue1')
+
+
+
 
 class TestGetApiToken(unittest.TestCase):
     def setUp(self):
