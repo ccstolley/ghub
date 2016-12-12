@@ -1,3 +1,4 @@
+#!/bin/env python
 """
 CLI interface to github.
 
@@ -193,7 +194,7 @@ def get_lead_commit(base_branch):
     """Retreieve the first commit to appear only on this branch."""
     commit = git_cmd(("cherry -v " + base_branch).split())
     if not commit and get_branch() == base_branch:
-        commit = git_cmd(("cherry -v").split())
+        commit = git_cmd(("cherry -v HEAD~1").split())
     commit = commit.splitlines()[0].split()
     return (commit[1], ' '.join(commit[2:]))
 
@@ -387,6 +388,7 @@ def create_pull_request(base_branch):
     if 'number' in result:
         print "Submitted Pull Request #%d - %s" % (result['number'],
                                                    result['title'])
+        print result['html_url']
     else:
         print "Sorry, something bad happened:" + result
 
