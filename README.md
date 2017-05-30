@@ -51,27 +51,30 @@ This tool is a work in progress.
 
 ## Usage
 ```
-usage: ghub [-h] [-i [number]] [-p [number]] [-d number] [-n base_branch]
-            [-m number] [-c number] [-v]
+usage: ghub [-h] [-i] [-p] [-d] [-n base] [-m] [-c] [-o] [-a [login]] [-v]
+            [-ok]
+            [number]
 
 command line interface to github
 
+positional arguments:
+  number                optional issue/PR number/login
+
 optional arguments:
   -h, --help            show this help message and exit
-  -i [number], --showissue [number]
-                        show issue #, or show all for specified user
-  -p [number], --showpull [number]
-                        show pull request # or show all
-  -d number, --diff number
-                        show diff for pull request #
-  -n base_branch, --newpull base_branch
+  -i, --showissue       show issue #, or show all for specified user
+  -p, --showpull        show pull request # or show all
+  -d, --diff            show diff for pull request #
+  -n base, --newpull base
                         create a new pull request from the current branch to
                         base_branch
-  -m number, --mergepull number
-                        merge pull request #
-  -c number, --comment number
-                        post comment on issue #
+  -m, --mergepull       merge pull request #
+  -c, --comment         post comment on issue #
+  -o, --openissue       create a new issue
+  -a [login], --assign [login]
+                        assign an issue to login
   -v, --verbose         be verbose
+  -ok, --approve        approve pull request #
 ```
 
 ## Examples

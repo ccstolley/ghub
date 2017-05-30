@@ -218,6 +218,16 @@ def get_pull_requests(number=None):
     return make_github_request(url)
 
 
+def get_reviews(number):
+    """
+    Retreive reviews for a specific pull request.
+    Returns a list of dicts.
+    """
+    user, repo = get_user_and_repo('upstream', 'origin')
+    url = GITHUB_API_URL + '/repos/%s/%s/pulls/%d/reviews' % (user, repo, int(number))
+    return make_github_request(url)
+
+
 def get_issues(filterby=None):
     """
     Retreive issues from github.
@@ -258,6 +268,7 @@ def display_pull_requests(verbose=False, number=None):
         return
     if number:
         pullreqs = (pullreqs, )
+
     for pr in pullreqs:
         print_pull_request(pr, verbose)
         print
@@ -333,15 +344,25 @@ def print_pull_request_comments(comment_obj):
         print
 
 
-def print_pull_request(pr, verbose):
+def print_pull_request(pr, verbose, reviews=None):
     """Display pull requests or issues on screen."""
     if verbose:
         print_tuple('Title', '#%s %s' % (pr['number'], pr['title']),
                     b_color='yellow')
         print_tuple('Submitter', pr['user']['login'])
-        if 'assignee' in pr:
+        if 'assignee' in pr and pr['assignee']:
             print_tuple('Assignee', (pr['assignee'] or {}).get('login'))
         print_tuple('Created At', pr['created_at'])
+        # tack on reviews
+        reviews = {(review['user']['login'], review['state'])
+                   for review in get_reviews(pr['number'])}
+        for user, state in reviews:
+            state = state.title()
+            if state == 'Approved':
+                state = colored(state, 'green')
+            else:
+                state = colored(state, 'magenta')
+            print_tuple('Review', '{} by {}'.format(state, user))
         if 'mergeable' in pr:
             if pr['merged']:
                 mergelabel = ('Already merged', 'white', 'magenta')
@@ -362,10 +383,10 @@ def print_pull_request(pr, verbose):
             for i, par in enumerate(paragraphs):
                 if i == 0:
                     print_tuple('Body', '')
-            for line in wrap_to_console(par):
-                print_tuple('', line)
+                for line in wrap_to_console(par):
+                    print_tuple('', line)
         else:
-            print "There is no description to this issue" 
+            print "There is no description to this issue"
         print
         print_pull_request_comments(pr['number'])
     else:
@@ -431,8 +452,47 @@ def merge_pull_request(number):
     if 'merged' in result:
         print "Pull Request #%d: %s" % (number, result['message'])
     else:
-        print "Sorry, something bad happened: " + str(result)
+        print "Sorry, something bad happened:", result
 
+
+def approve_pull_request(number):
+    """
+    Submit "approve" review for given PR number.
+    """
+    (upstream_user, upstream_repo) = get_user_and_repo('upstream')
+    (reviewer, _) = get_user_and_repo('origin')
+    reviews = {review['user']['login'] for review in get_reviews(number)}
+    if reviewer in reviews:
+        # github lets you approve multiple times?
+        print 'You already approved this PR.'
+        return
+    data = json.dumps({'event': 'APPROVE'})
+    url = GITHUB_API_URL + '/repos/%s/%s/pulls/%d/reviews' % (
+        upstream_user, upstream_repo, number)
+    result = make_github_request(
+        url, data, method='POST', headers={'content-type': 'application/json'})
+    if result and result.get('state') == 'APPROVED':
+        print 'PR #{} approved.', colored(number, 'white')
+    else:
+        print 'ERROR: unable to approve PR', number, result
+
+
+def review_pull_request(number, reviewers_str):
+    """
+    Request review by 1 or more logins.
+    """
+    reviewers = reviewers_str.split(',')
+    upstream_user, upstream_repo = get_user_and_repo('upstream')
+    data = json.dumps({'reviewers': reviewers})
+    url = GITHUB_API_URL + '/repos/%s/%s/pulls/%d/requested_reviewers' % (
+        upstream_user, upstream_repo, number)
+    result = make_github_request(
+        url, data, method='POST', headers={'content-type': 'application/json'})
+    if result and 'requested_reviewers' in result:
+        confirmed_reviewers = ','.join(r['login'] for r in result['requested_reviewers'])
+        print "Reviews requested from", confirmed_reviewers
+    else:
+        print "Unable to request reviews:", result
 
 def create_issue():
     """
@@ -538,6 +598,11 @@ def main():
         nargs='?', type=str, default='')
     parser.add_argument(
         '-v', '--verbose', help='be verbose', action='store_true')
+    parser.add_argument(
+        '-ok', '--approve', help='approve pull request #', action='store_true')
+    parser.add_argument(
+        '-r', '--review', help='request review from login(s)', nargs='?', metavar='login[,login2]',
+        type=str, default='')
     args = parser.parse_args()
 
     def _issue_number(optional=False):
@@ -571,7 +636,10 @@ def main():
         if not args.number:
             (args.number, args.assign) = (args.assign, None)
         assign_issue(_issue_number(), args.assign)
-
+    elif args.approve:
+        approve_pull_request(_issue_number())
+    elif args.review:
+        review_pull_request(_issue_number(), args.review)
     else:
         parser.print_usage()
 
