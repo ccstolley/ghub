@@ -1,4 +1,5 @@
-#!/bin/env python
+#!/usr/bin/env python3
+
 """
 CLI interface to github.
 
@@ -9,7 +10,7 @@ Make sure to run these first:
 """
 from operator import itemgetter
 import fcntl
-import httplib
+import http.client
 import json
 import os
 import socket
@@ -20,16 +21,16 @@ import subprocess
 import tempfile
 import termios
 import textwrap
-import urllib2
+import urllib.request, urllib.error, urllib.parse
 
-GITHUB_API_URL = 'https://api.github.com'
-ORIGIN_LINE_START = 'Push  URL:'
+GITHUB_API_URL = u'https://api.github.com'
+ORIGIN_LINE_START = b'Push  URL:'
 GIT_EXECUTABLE = subprocess.Popen(
     r'which \git', shell=True, stdout=subprocess.PIPE).communicate()[0].strip()
 GIT_CONFIG_TOKEN = 'github.token'
 
 
-class SafeHTTPSConnection(httplib.HTTPConnection):
+class SafeHTTPSConnection(http.client.HTTPConnection):
 
     """
     Provide an HTTPS connection which verifies certificate validity.
@@ -47,7 +48,7 @@ class SafeHTTPSConnection(httplib.HTTPConnection):
     def __init__(self, host, port=None, strict=None,
                  timeout=socket._GLOBAL_DEFAULT_TIMEOUT):
         """Initialize SafeHTTPSConnection."""
-        httplib.HTTPConnection.__init__(self, host, port, strict, timeout)
+        http.client.HTTPConnection.__init__(self, host, port, strict, timeout)
 
     def get_ca_certs_file(self):
         """
@@ -58,7 +59,7 @@ class SafeHTTPSConnection(httplib.HTTPConnection):
         for certsfile in self.ca_cert_file_locations:
             if os.path.isfile(certsfile):
                 return certsfile
-        print "FATAL: Unable to verify SSL certificate validity."
+        print("FATAL: Unable to verify SSL certificate validity.")
         raise SystemExit
 
     def connect(self):
@@ -72,14 +73,14 @@ class SafeHTTPSConnection(httplib.HTTPConnection):
             cert_reqs=ssl.CERT_REQUIRED)
 
 
-class SafeHTTPSHandler(urllib2.HTTPSHandler):
+class SafeHTTPSHandler(urllib.request.HTTPSHandler):
 
     def https_open(self, req):
         return self.do_open(SafeHTTPSConnection, req)
 
 
-opener = urllib2.build_opener(SafeHTTPSHandler)
-urllib2.install_opener(opener)
+opener = urllib.request.build_opener(SafeHTTPSHandler)
+urllib.request.install_opener(opener)
 
 
 def git_cmd(args):
@@ -112,30 +113,30 @@ def make_github_request(*args, **kwargs):
     kwargs.setdefault('headers', {}).update(
         {'Authorization': 'token %s' % token,
          'User-agent': 'ccstolley-ghub'})
-    req = urllib2.Request(*args, **kwargs)
+    req = urllib.request.Request(*args, **kwargs)
     if method:
         req.get_method = lambda: method
     try:
-        urlstream = urllib2.urlopen(req)
-    except urllib2.HTTPError as e:
+        urlstream = urllib.request.urlopen(req)
+    except urllib.error.HTTPError as e:
         if e.getcode() == 404:
             return []
-        print "%d %s" % (e.getcode(), e.geturl())
-        print json.dumps(json.loads(e.read()), indent=2)
+        print("%d %s" % (e.getcode(), e.geturl()))
+        print(json.dumps(json.loads(e.read().decode('utf8')), indent=2))
         raise SystemExit
-    except urllib2.URLError as e:
-        print e.reason  # probably an ssl error
+    except urllib.error.URLError as e:
+        print(e.reason)  # probably an ssl error
         raise SystemExit
     content_type = urlstream.headers['content-type']
     data = urlstream.read()
     if verbose:
-        print urlstream.headers
-        print urlstream.getcode()
-        print data
+        print(urlstream.headers)
+        print(urlstream.getcode())
+        print(data)
     if content_type.split(';')[0] == ('application/json'):
-        return json.loads(data)
+        return json.loads(data.decode('utf8'), encoding='utf8')
     else:
-        return data
+        return data.decode('utf8')
 
 
 def get_api_token():
@@ -146,16 +147,16 @@ def get_api_token():
                "git config --global github.token <github "
                "personal access token>")
         raise SystemExit
-    return token
+    return token.decode('utf8')
 
 
 def get_branch():
     """Get the current local branch."""
-    branch_name = git_cmd("symbolic-ref HEAD".split())
+    branch_name = git_cmd("symbolic-ref HEAD".split()).decode('utf8')
     if branch_name:
         return branch_name.strip().replace("refs/heads/", "")
     else:
-        print "ERROR: detached HEAD"
+        print("ERROR: detached HEAD")
         raise SystemExit
 
 
@@ -171,7 +172,7 @@ def get_user_and_repo(remote_name='origin', alt_name=None):
         for line in cmd_output.splitlines():
             line = line.strip()
             if line.startswith(ORIGIN_LINE_START):
-                return line[len(ORIGIN_LINE_START):].strip()
+                return line[len(ORIGIN_LINE_START):].strip().decode('utf8')
 
     repo_line = get_repo_line(git_cmd(('remote show -n ' +
                                        remote_name).split()))
@@ -179,23 +180,23 @@ def get_user_and_repo(remote_name='origin', alt_name=None):
         repo_line = get_repo_line(git_cmd(('remote show -n ' +
                                            alt_name).split()))
     if repo_line.find(':') < 1:
-        print ("Unable to find remote repo named '%s'. Run:\n\t"
-               "git remote add %s ..." % (remote_name, remote_name))
+        print(("Unable to find remote repo named '%s'. Run:\n\t"
+               "git remote add %s ..." % (remote_name, remote_name)))
         raise SystemExit
     else:
         _, user_name_repo = repo_line.split(':')
         while user_name_repo.startswith('/'):
             user_name_repo = user_name_repo[1:]
-        user_name, repo = user_name_repo.split('/')
+        user_name, repo = user_name_repo.split('/')[-2:]
         repo = repo.replace('.git', '')
     return user_name, repo
 
 
 def get_lead_commit(base_branch):
     """Retreieve the first commit to appear only on this branch."""
-    commit = git_cmd(("cherry -v " + base_branch).split())
+    commit = git_cmd(("cherry -v " + base_branch).split()).decode('utf8')
     if not commit and get_branch() == base_branch:
-        commit = git_cmd(("cherry -v HEAD~1").split())
+        commit = git_cmd(("cherry -v HEAD~1").split()).decode('utf8')
     commit = commit.splitlines()[0].split()
     return (commit[1], ' '.join(commit[2:]))
 
@@ -203,7 +204,7 @@ def get_lead_commit(base_branch):
 def get_commit_message_body(commit_sha1):
     """Return commit message body (no subject) for the given sha1."""
     cmd = "log --format=%b -n 1 " + commit_sha1
-    return git_cmd(cmd.split())
+    return git_cmd(cmd.split()).decode('utf8')
 
 
 def get_pull_requests(number=None):
@@ -244,7 +245,7 @@ def get_issues(filterby=None):
             assignee = filterby
         else:
             assignee, _ = get_user_and_repo('origin')
-        url += '?assignee=' + urllib2.quote(assignee)
+        url += '?assignee=' + urllib.parse.quote(assignee)
     return make_github_request(url)
 
 
@@ -264,21 +265,21 @@ def display_pull_requests(verbose=False, number=None):
     """Obtain and display pull requests."""
     pullreqs = get_pull_requests(number)
     if not pullreqs:
-        print "No results."
+        print("No results.")
         return
     if number:
         pullreqs = (pullreqs, )
 
     for pr in pullreqs:
         print_pull_request(pr, verbose)
-        print
+        print()
 
 
 def display_issues(filterby, verbose=False):
     """Obtain and display issues."""
     issues = get_issues(filterby)
     if not issues:
-        print "No results."
+        print("No results.")
         return
     if filterby and str(filterby).isdigit():
         issues = (issues, )
@@ -294,8 +295,8 @@ def colored(text, color, attrs=None):
     attrmap = dict(zip(
         ['bold', 'dark', '', 'underline', 'blink', '', 'reverse', 'concealed'],
         range(1, 9)))
-    reset = '\033[0m'
-    fmt_str = '\033[%dm%s'
+    reset = u'\033[0m'
+    fmt_str = u'\033[%dm%s'
     text = fmt_str % (colormap[color], text)
     if attrs is not None:
         for attr in attrs:
@@ -306,9 +307,9 @@ def colored(text, color, attrs=None):
 def print_tuple(a, b, a_color='white', b_color='white'):
     """Format string arguments a and b for display on screen in two columns."""
     b = b if b is not None else 'None'
-    print '%25s : %s' % (
+    print(u'%25s : %s' % (
         colored(a, a_color, attrs=['bold']),
-        colored(b.encode('ascii', 'replace'), b_color))
+        colored(b, b_color)))
 
 
 def get_pull_request_comments(number):
@@ -341,7 +342,7 @@ def print_pull_request_comments(comment_obj):
                             a_color='cyan')
             for line in wrapped_body:
                 print_tuple('', line)
-        print
+        print()
 
 
 def print_pull_request(pr, verbose, reviews=None):
@@ -386,8 +387,8 @@ def print_pull_request(pr, verbose, reviews=None):
                 for line in wrap_to_console(par):
                     print_tuple('', line)
         else:
-            print "There is no description to this issue"
-        print
+            print("There is no description to this issue")
+        print()
         print_pull_request_comments(pr['number'])
     else:
         print_tuple(pr['user']['login'][:12],
@@ -411,21 +412,21 @@ def create_pull_request(base_branch):
         "%s\n\n%s" % (subj, body), list_format=True)
     (subj, body) = textlines[0], '\n'.join(textlines[1:])
     data = json.dumps({'title': subj, 'body': body,
-                       'head': ":".join((user, branch)), 'base': base_branch})
+                       'head': ":".join((user, branch)), 'base': base_branch}).encode('utf8')
     result = make_github_request(url, data,
                                  headers={'content-type': 'application/json'})
     if 'number' in result:
-        print "Submitted Pull Request #%d - %s" % (result['number'],
-                                                   result['title'])
-        print result['html_url']
+        print("Submitted Pull Request #%d - %s" % (result['number'],
+                                                   result['title']))
+        print(result['html_url'])
     else:
-        print "Sorry, something bad happened:" + result
+        print("Sorry, something bad happened:" + result)
 
 
 def get_text_from_editor(def_text, list_format=False):
     """Run the default text editor and return the text entered."""
     tmp = tempfile.mktemp()
-    open(tmp, "w").write(def_text)
+    open(tmp, "w", encoding='utf8').write(def_text)
     editor = os.environ.get("EDITOR", "vim")
     os.system("%s %s" % (editor, tmp))
     if list_format:
@@ -442,17 +443,17 @@ def merge_pull_request(number):
     commit_msg = get_text_from_editor("\n# Enter merge comments for PR %d" %
                                       number)
     if not commit_msg:
-        print "No commit message: Aborting."
+        print("No commit message: Aborting.")
         raise SystemExit
-    data = json.dumps({'commit_message': commit_msg})
+    data = json.dumps({'commit_message': commit_msg}).encode('utf8')
     url = GITHUB_API_URL + '/repos/%s/%s/pulls/%d/merge' % (
         upstream_user, upstream_repo, number)
     result = make_github_request(
         url, data, method='PUT', headers={'content-type': 'application/json'})
     if 'merged' in result:
-        print "Pull Request #%d: %s" % (number, result['message'])
+        print("Pull Request #%d: %s" % (number, result['message']))
     else:
-        print "Sorry, something bad happened:", result
+        print("Sorry, something bad happened:", result)
 
 
 def approve_pull_request(number):
@@ -461,20 +462,20 @@ def approve_pull_request(number):
     """
     (upstream_user, upstream_repo) = get_user_and_repo('upstream')
     (reviewer, _) = get_user_and_repo('origin')
-    reviews = {review['user']['login'] for review in get_reviews(number)}
+    reviews = {review['user']['login'] for review in get_reviews(number) if review['state'] == 'APPROVED'}
     if reviewer in reviews:
         # github lets you approve multiple times?
-        print 'You already approved this PR.'
+        print('You already approved PR', number)
         return
-    data = json.dumps({'event': 'APPROVE'})
+    data = json.dumps({'event': 'APPROVE'}).encode('utf8')
     url = GITHUB_API_URL + '/repos/%s/%s/pulls/%d/reviews' % (
         upstream_user, upstream_repo, number)
     result = make_github_request(
         url, data, method='POST', headers={'content-type': 'application/json'})
     if result and result.get('state') == 'APPROVED':
-        print 'PR #{} approved.', colored(number, 'white')
+        print('PR #{} approved.'.format(colored(number, 'yellow')))
     else:
-        print 'ERROR: unable to approve PR', number, result
+        print('ERROR: unable to approve PR', number, result)
 
 
 def review_pull_request(number, reviewers_str):
@@ -483,16 +484,16 @@ def review_pull_request(number, reviewers_str):
     """
     reviewers = reviewers_str.split(',')
     upstream_user, upstream_repo = get_user_and_repo('upstream')
-    data = json.dumps({'reviewers': reviewers})
+    data = json.dumps({'reviewers': reviewers}).encode('utf8')
     url = GITHUB_API_URL + '/repos/%s/%s/pulls/%d/requested_reviewers' % (
         upstream_user, upstream_repo, number)
     result = make_github_request(
         url, data, method='POST', headers={'content-type': 'application/json'})
     if result and 'requested_reviewers' in result:
         confirmed_reviewers = ','.join(r['login'] for r in result['requested_reviewers'])
-        print "Reviews requested from", confirmed_reviewers
+        print("Reviews requested from", confirmed_reviewers)
     else:
-        print "Unable to request reviews:", result
+        print("Unable to request reviews:", result)
 
 def create_issue():
     """
@@ -507,7 +508,7 @@ def create_issue():
         "\n# will be ignored and an empty message aborts the issue creation.",
         list_format=True)
     if not issue_text:
-        print "No issue title: Aborting."
+        print("No issue title: Aborting.")
         raise SystemExit
     data = {'title': issue_text.pop(0)}
     if issue_text:
@@ -518,9 +519,9 @@ def create_issue():
     result = make_github_request(
         url, data, headers={'content-type': 'application/json'})
     if 'title' in result:
-        print "Created issue #%d: %s" % (result['number'], result['title'])
+        print("Created issue #%d: %s" % (result['number'], result['title']))
     else:
-        print "Sorry, something bad happened: " + str(result)
+        print("Sorry, something bad happened: " + str(result))
 
 
 def post_issue_comment(number):
@@ -531,7 +532,7 @@ def post_issue_comment(number):
     """
     msg = get_text_from_editor("\n# Enter comments for issue %d" % number)
     if not msg:
-        print "No comments: Aborting."
+        print("No comments: Aborting.")
         raise SystemExit
     (upstream_user, upstream_repo) = get_user_and_repo('upstream', 'origin')
     url = GITHUB_API_URL + '/repos/%s/%s/issues/%d/comments' % (
@@ -542,7 +543,7 @@ def post_issue_comment(number):
     if 'body' in result:
         print_pull_request_comments(result)
     else:
-        print "Something bad happened: " + str(result)
+        print("Something bad happened: " + str(result))
 
 
 def assign_issue(number, assignee):
@@ -561,10 +562,10 @@ def assign_issue(number, assignee):
         url, data, method='PATCH',
         headers={'content-type': 'application/json'})
     if 'assignee' in result:
-        print "Assigned # %d to %s" % (result['number'],
-                                       result['assignee']['login'])
+        print("Assigned # %d to %s" % (result['number'],
+                                       result['assignee']['login']))
     else:
-        print "Something bad happened: " + str(result)
+        print("Something bad happened: " + str(result))
 
 
 def main():
@@ -611,7 +612,7 @@ def main():
         elif args.number is None and optional:
             return None
         else:
-            print "Must specify a numeric issue/PR #"
+            print("Must specify a numeric issue/PR #")
             parser.print_usage()
             raise SystemExit
 
@@ -623,7 +624,7 @@ def main():
                        verbose=args.verbose or (
                            args.number and args.number.isdigit()))
     elif args.diff:
-        print get_pull_request_diff(_issue_number())
+        print(get_pull_request_diff(_issue_number()))
     elif args.newpull:
         create_pull_request(args.newpull[0])
     elif args.mergepull:
