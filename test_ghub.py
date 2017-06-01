@@ -6,7 +6,7 @@ from mock import patch
 class TestGhubFunctions(unittest.TestCase):
     def test_version(self):
         result = ghub.git_cmd(['version',])
-        self.assertRegex(result, 'git version \d.\d.\d')
+        self.assertRegex(result, b'git version \d.\d.\d')
 
     def test_get_console_width(self):
         # travis tests don't have a console, so console width is 0
@@ -27,28 +27,28 @@ class TestGhubFunctions(unittest.TestCase):
         for line in result:
             self.assertLess(len(line), 80)
     
-    @patch('ghub.git_cmd', lambda x: 'refs/heads/__test__master')
+    @patch('ghub.git_cmd', lambda x: b'refs/heads/__test__master')
     def test_get_branch(self):
         self.assertEqual(ghub.get_branch(), '__test__master')
 
     def test_get_user_and_repo(self):
-        git_output = ('Fetch URL: git@github.com:ccstolley/ghub\n'
-                      'Push  URL: git@github.com:ccstolley/ghub\n'
-                      'HEAD branch: (not queried)\n')
+        git_output = (b'Fetch URL: git@github.com:ccstolley/ghub\n'
+                      b'Push  URL: git@github.com:ccstolley/ghub\n'
+                      b'HEAD branch: (not queried)\n')
         with patch('ghub.git_cmd', lambda x: git_output):
             self.assertEqual(ghub.get_user_and_repo(),
                              ('ccstolley', 'ghub'))
 
     def test_get_lead_commit(self):
         git_output = (
-            '+ 7cec2b67173717c2dab0e62dfc27943851c40618 message\n'
-            '+ 2819029108291089090890890890943851c40892 what is\n')
+            b'+ 7cec2b67173717c2dab0e62dfc27943851c40618 message\n'
+            b'+ 2819029108291089090890890890943851c40892 what is\n')
         with patch('ghub.git_cmd', lambda x: git_output):
             self.assertEqual(
                 ghub.get_lead_commit('master'),
                 ('7cec2b67173717c2dab0e62dfc27943851c40618', 'message'))
 
-    @patch('ghub.git_cmd', lambda x: 'foobar\nfoobar2\n')
+    @patch('ghub.git_cmd', lambda x: b'foobar\nfoobar2\n')
     def test_get_commit_message_body(self):
         self.assertEqual(
             ghub.get_commit_message_body('23121aed'),
