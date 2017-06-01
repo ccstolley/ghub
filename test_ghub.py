@@ -1,12 +1,12 @@
 import unittest
 import ghub
-from StringIO import StringIO
+from io import StringIO
 from mock import patch
 
 class TestGhubFunctions(unittest.TestCase):
     def test_version(self):
         result = ghub.git_cmd(['version',])
-        self.assertRegexpMatches(result, 'git version \d.\d.\d')
+        self.assertRegex(result, 'git version \d.\d.\d')
 
     def test_get_console_width(self):
         # travis tests don't have a console, so console width is 0
@@ -102,7 +102,7 @@ class TestGhubFunctions(unittest.TestCase):
         mock_req.return_value = {
             'number':'1', 'title':'pr1', 'user': {'login': 'foo'}}
         ghub.display_pull_requests(verbose=False, number=1)
-        self.assertRegexpMatches(mock_print.getvalue(), '#1 pr1')
+        self.assertRegex(mock_print.getvalue(), '#1 pr1')
 
     @patch('sys.stdout', new_callable=StringIO)
     @patch('ghub.get_issues', lambda x: [])
@@ -116,7 +116,7 @@ class TestGhubFunctions(unittest.TestCase):
         mock_req.return_value = {
             'number':'1', 'title':'issue1', 'user': {'login': 'foo'}}
         ghub.display_issues('1')
-        self.assertRegexpMatches(mock_print.getvalue(), '#1 issue1')
+        self.assertRegex(mock_print.getvalue(), '#1 issue1')
 
 
 
