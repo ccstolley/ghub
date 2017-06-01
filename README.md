@@ -7,7 +7,7 @@ A command line interface for github.
 
 ## Requirements
 
-- Python 2.7 or greater
+- Python 3.4 or greater
 - git
 
 ## Introduction
