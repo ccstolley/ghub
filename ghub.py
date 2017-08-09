@@ -440,11 +440,7 @@ def get_text_from_editor(def_text, list_format=False):
 def merge_pull_request(number):
     """Prompt for a comment and merge specified pull request."""
     (upstream_user, upstream_repo) = get_user_and_repo('upstream', 'origin')
-    commit_msg = get_text_from_editor("\n# Enter merge comments for PR %d" %
-                                      number)
-    if not commit_msg:
-        print("No commit message: Aborting.")
-        raise SystemExit
+    commit_msg = 'ok'
     data = json.dumps({'commit_message': commit_msg}).encode('utf8')
     url = GITHUB_API_URL + '/repos/%s/%s/pulls/%d/merge' % (
         upstream_user, upstream_repo, number)
@@ -456,7 +452,7 @@ def merge_pull_request(number):
         print("Sorry, something bad happened:", result)
 
 
-def approve_pull_request(number):
+def approve_pull_request(number, comment=None):
     """
     Submit "approve" review for given PR number.
     """
@@ -467,7 +463,13 @@ def approve_pull_request(number):
         # github lets you approve multiple times?
         print('You already approved PR', number)
         return
-    data = json.dumps({'event': 'APPROVE'}).encode('utf8')
+    if comment is None:
+        comment = get_text_from_editor('# add approval comments for PR #%s\n\n' % number);
+        if not comment:
+            print("No approval message: Aborting.")
+            raise SystemExit
+
+    data = json.dumps({'event': 'APPROVE', 'body': comment}).encode('utf8')
     url = GITHUB_API_URL + '/repos/%s/%s/pulls/%d/reviews' % (
         upstream_user, upstream_repo, number)
     result = make_github_request(
@@ -513,7 +515,7 @@ def create_issue():
     data = {'title': issue_text.pop(0)}
     if issue_text:
         data['body'] = '\n'.join(issue_text)
-    data = json.dumps(data)
+    data = json.dumps(data).encode('utf8')
     url = GITHUB_API_URL + '/repos/%s/%s/issues' % (
         upstream_user, upstream_repo)
     result = make_github_request(
@@ -537,7 +539,7 @@ def post_issue_comment(number):
     (upstream_user, upstream_repo) = get_user_and_repo('upstream', 'origin')
     url = GITHUB_API_URL + '/repos/%s/%s/issues/%d/comments' % (
         upstream_user, upstream_repo, number)
-    data = json.dumps({'body': msg})
+    data = json.dumps({'body': msg}).encode('utf8')
     result = make_github_request(
         url, data, headers={'content-type': 'application/json'})
     if 'body' in result:
@@ -555,7 +557,7 @@ def assign_issue(number, assignee):
     (upstream_user, upstream_repo) = get_user_and_repo('upstream', 'origin')
     if not assignee:
         (assignee, _) = get_user_and_repo('origin')
-    data = json.dumps({'assignee': assignee})
+    data = json.dumps({'assignee': assignee}).encode('utf8')
     url = GITHUB_API_URL + '/repos/%s/%s/issues/%d' % (
         upstream_user, upstream_repo, number)
     result = make_github_request(
