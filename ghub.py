@@ -464,7 +464,7 @@ def approve_pull_request(number, comment=None):
         print('You already approved PR', number)
         return
     if comment is None:
-        comment = get_text_from_editor('# add approval comments for PR #%s\n\n' % number);
+        comment = get_text_from_editor('\n# add approval comments for PR #%s' % number);
         if not comment:
             print("No approval message: Aborting.")
             raise SystemExit
