@@ -119,6 +119,7 @@ Display pull request and comments:
     ghub -p 101
     
 Approve pull request:
+
     ghub -ok 101
 
 Merge pull request:
