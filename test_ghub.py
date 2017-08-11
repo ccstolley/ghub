@@ -6,7 +6,7 @@ from mock import patch
 class TestGhubFunctions(unittest.TestCase):
     def test_version(self):
         result = ghub.git_cmd(['version',])
-        self.assertRegex(result, b'git version \d.\d.\d')
+        self.assertRegex(result, b'git version \d+.\d+.\d+')
 
     def test_get_console_width(self):
         # travis tests don't have a console, so console width is 0
