@@ -25,14 +25,7 @@ This tool is a work in progress.
 
 ## Getting Started
 
-1. Generate a personal access token from
-   [github](https://github.com/settings/applications).
-2. Store the access token in your gitconfig. This has potentially
-   serious security implications. Only do this on a machine you trust:
-   ```
-   git config --global github.token <token value>
-   ```
-3. Install ghub:
+1. Install ghub:
     ```
     git clone git@github.com:ccstolley/ghub
     
@@ -40,6 +33,16 @@ This tool is a work in progress.
     
     python ./setup.py install
     ```
+2. Generate a personal access token from
+   [github](https://github.com/settings/applications).
+3. Stash the access token. This has potentially serious security
+   implications. The token will be stored in the clear on the file system
+   in a file readable only by you. Only do this on a machine you trust:
+   ```
+   ghub -S
+   Enter token: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   API token has been successfully stashed.
+   ```
 4. Create remote repositories for `upstream` and `origin`. Eg.:
     ```
     git remote add origin git@github.com:joesmith/ghub
@@ -52,7 +55,7 @@ This tool is a work in progress.
 ## Usage
 ```
 usage: ghub [-h] [-i] [-p] [-d] [-n base] [-m] [-c] [-o] [-a [login]] [-v]
-            [-ok]
+            [-ok] [-r [login[,login2]]] [-S] [-U]
             [number]
 
 command line interface to github
@@ -75,6 +78,10 @@ optional arguments:
                         assign an issue to login
   -v, --verbose         be verbose
   -ok, --approve        approve pull request #
+  -r [login[,login2]], --review [login[,login2]]
+                        request review from login(s)
+  -S, --stashtoken      Stash github API token
+  -U, --unstashtoken    Destroy stashed github API token
 ```
 
 ## Examples
@@ -95,10 +102,6 @@ List all unassigned open issues in this repo:
 
     ghub -i none
     
-List all open issues in this repo:
-
-    ghub -i '*'
-
 List issues assigned to ccstolley, including comments and summary:
 
     ghub -i ccstolley -v
@@ -107,10 +110,17 @@ Create a pull request from the current branch to the specific upstream branch:
 
     ghub -n dev
 
+Add reviewers to pull request:
+
+    ghub -r manny,moe,jack
+
 Display pull request and comments:
 
     ghub -p 101
     
+Approve pull request:
+    ghub -ok 101
+
 Merge pull request:
 
     ghub -m 101

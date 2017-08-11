@@ -28,6 +28,7 @@ ORIGIN_LINE_START = b'Push  URL:'
 GIT_EXECUTABLE = subprocess.Popen(
     r'which \git', shell=True, stdout=subprocess.PIPE).communicate()[0].strip()
 GIT_CONFIG_TOKEN = 'github.token'
+GHUB_SECRET_FILE = '.ghub'
 
 
 class SafeHTTPSConnection(http.client.HTTPConnection):
@@ -139,14 +140,76 @@ def make_github_request(*args, **kwargs):
         return data.decode('utf8')
 
 
+def secret_file_path():
+    return os.path.join(os.environ.get('HOME'), GHUB_SECRET_FILE)
+
+
+def stash_api_token():
+    """
+    Store the API token.
+
+    Stores token string into ~/.ghub . Sets 0600 perms and
+    fails if file already exists. 
+    """
+    token = input('Enter token: ')
+    try:
+        with os.fdopen(os.open(
+            secret_file_path(), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w') as secret_file:
+            secret_file.write(token)
+        print("API token has been successfully stashed.")
+    except OSError:
+        print("Unable to create token file.\n"
+              "Make sure {} doesn't already exist.".format(secret_file_path()))
+
+
 def get_api_token():
-    """Retrieve the API token."""
-    token = git_cmd("config --get".split() + [GIT_CONFIG_TOKEN])
+    """
+    Retrieve the API token.
+    """
+    token = None
+    try:
+        with open(secret_file_path()) as secret_file:
+            token = secret_file.read().strip()
+    except IOError as e:
+        print("WARN: unable to read token file.\n", file=sys.stderr)
+        # fall back to git config for old users
+        token = __fallback_get_api_token();
+
     if not token:
-        print ("Unable to find github token. Run:\n\t"
-               "git config --global github.token <github "
-               "personal access token>")
+        print ("Unable to find github token. Run:\n\t ghub -S")
         raise SystemExit
+    else:
+        return token
+
+def unstash_api_token():
+    """
+    Shred the stashed API token.
+
+    Overwrites with random data, zeros, then deletes stashed token.
+    """
+    try:
+        with open(secret_file_path(), "rb+") as secret_file:
+            size = os.stat(secret_file_path()).st_size
+            secret_file.seek(0)
+            secret_file.write(os.urandom(size))
+            secret_file.flush()
+            secret_file.seek(0)
+            secret_file.write(b'\0' * size)
+            secret_file.flush()
+        os.remove(secret_file_path())
+        print("Stashed API token has been destroyed.")
+    except (IOError, OSError) as e:
+        print('ERROR: unable to destroy stashed token\n\t{}\n'.format(e))
+
+
+def __fallback_get_api_token():
+    """
+    Retrieve token from git config.
+
+    This is deprecated and exists only to maintain backward compatibility
+    with older versions of ghub.
+    """
+    token = git_cmd("config --get".split() + [GIT_CONFIG_TOKEN])
     return token.decode('utf8')
 
 
@@ -176,6 +239,9 @@ def get_user_and_repo(remote_name='origin', alt_name=None):
 
     repo_line = get_repo_line(git_cmd(('remote show -n ' +
                                        remote_name).split()))
+    if not repo_line:
+        print("This does not appear to be a git repository.")
+        raise SystemExit
     if repo_line.find(':') < 1 and alt_name is not None:
         repo_line = get_repo_line(git_cmd(('remote show -n ' +
                                            alt_name).split()))
@@ -606,6 +672,10 @@ def main():
     parser.add_argument(
         '-r', '--review', help='request review from login(s)', nargs='?', metavar='login[,login2]',
         type=str, default='')
+    parser.add_argument(
+        '-S', '--stashtoken', help='Stash github API token', action='store_true')
+    parser.add_argument(
+        '-U', '--unstashtoken', help='Destroy stashed github API token', action='store_true')
     args = parser.parse_args()
 
     def _issue_number(optional=False):
@@ -643,6 +713,10 @@ def main():
         approve_pull_request(_issue_number())
     elif args.review:
         review_pull_request(_issue_number(), args.review)
+    elif args.stashtoken:
+        stash_api_token()
+    elif args.unstashtoken:
+        unstash_api_token()
     else:
         parser.print_usage()
 
