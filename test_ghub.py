@@ -1,7 +1,8 @@
+import os
 import unittest
-import ghub
 from io import StringIO
 from mock import patch
+import ghub
 
 class TestGhubFunctions(unittest.TestCase):
     def test_version(self):
@@ -119,16 +120,38 @@ class TestGhubFunctions(unittest.TestCase):
         self.assertRegex(mock_print.getvalue(), '#1 issue1')
 
 
+TEST_TOKEN_PATH = '/tmp/zzaaaTESTGHUB'
 
 
+@patch('ghub.secret_file_path', lambda: TEST_TOKEN_PATH)
+@patch('ghub.__fallback_get_api_token', lambda: None)
 class TestGetApiToken(unittest.TestCase):
-    def setUp(self):
-        self.git_config_token = 'github.__test__.token'
-        ghub.git_cmd("config --global".split() + [self.git_config_token, 'foobar'])
 
+    @patch('ghub.secret_file_path', lambda: TEST_TOKEN_PATH)
     def tearDown(self):
-        ghub.git_cmd("config --global --unset".split() + [self.git_config_token])
+        if os.path.exists(TEST_TOKEN_PATH):
+            os.remove(TEST_TOKEN_PATH)
 
-    def test_get_api_token(self):
+    def test_stash_api_token(self):
+        ghub.stash_api_token('atesttoken')
+        self.assertEqual(ghub.get_api_token(), 'atesttoken')
+
+    def test_unstash_api_token(self):
+        with open(TEST_TOKEN_PATH, 'w') as f:
+            f.write('testunstash')
+        ghub.unstash_api_token()
+        self.assertFalse(os.path.exists(TEST_TOKEN_PATH))
+
+
+@patch('ghub.secret_file_path', lambda: TEST_TOKEN_PATH)
+class TestGetApiTokenFallback(unittest.TestCase):
+    def tearDown(self):
+        ghub.git_cmd("config --global --remove-section github.__testghub__".split())
+        if os.path.exists(TEST_TOKEN_PATH):
+            os.remove(TEST_TOKEN_PATH)
+
+    def test_get_api_token__fallback(self):
+        self.git_config_token = 'github.__testghub__.token'
+        ghub.git_cmd("config --global".split() + [self.git_config_token, 'foobar'])
         with patch('ghub.GIT_CONFIG_TOKEN', self.git_config_token):
             self.assertEqual(ghub.get_api_token(), 'foobar')

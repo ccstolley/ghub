@@ -144,14 +144,13 @@ def secret_file_path():
     return os.path.join(os.environ.get('HOME'), GHUB_SECRET_FILE)
 
 
-def stash_api_token():
+def stash_api_token(token):
     """
     Store the API token.
 
     Stores token string into ~/.ghub . Sets 0600 perms and
     fails if file already exists. 
     """
-    token = input('Enter token: ')
     try:
         with os.fdopen(os.open(
             secret_file_path(), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w') as secret_file:
@@ -714,7 +713,7 @@ def main():
     elif args.review:
         review_pull_request(_issue_number(), args.review)
     elif args.stashtoken:
-        stash_api_token()
+        stash_api_token(input('Enter token: '))
     elif args.unstashtoken:
         unstash_api_token()
     else:
