@@ -529,12 +529,17 @@ def approve_pull_request(number, comment=None):
         print('You already approved PR', number)
         return
     if comment is None:
-        comment = get_text_from_editor('\n# add approval comments for PR #%s' % number);
+        comment = get_text_from_editor('\n# add approval comments (or - for blank) for PR #%s' % number);
         if not comment:
             print("No approval message: Aborting.")
             raise SystemExit
+        elif comment.strip() == '-':
+            comment = None  # don't supply a comment
 
-    data = json.dumps({'event': 'APPROVE', 'body': comment}).encode('utf8')
+    data = {'event': 'APPROVE'}
+    if comment is not None:
+        data['body'] = comment
+    data = json.dumps(data).encode('utf8')
     url = GITHUB_API_URL + '/repos/%s/%s/pulls/%d/reviews' % (
         upstream_user, upstream_repo, number)
     result = make_github_request(
