@@ -31,7 +31,7 @@ This tool is a work in progress.
     
     cd ghub
     
-    python ./setup.py install
+    python3 ./setup.py install
     ```
 2. Generate a personal access token from
    [github](https://github.com/settings/applications).
