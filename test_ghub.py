@@ -4,9 +4,11 @@ from io import StringIO
 from mock import patch
 import ghub
 
+
 class TestGhubFunctions(unittest.TestCase):
+
     def test_version(self):
-        result = ghub.git_cmd(['version',])
+        result = ghub.git_cmd(['version', ])
         self.assertRegex(result, b'git version \d+.\d+.\d+')
 
     def test_get_console_width(self):
@@ -27,7 +29,7 @@ class TestGhubFunctions(unittest.TestCase):
         result = ghub.wrap_to_console(text)
         for line in result:
             self.assertLess(len(line), 80)
-    
+
     @patch('ghub.git_cmd', lambda x: b'refs/heads/__test__master')
     def test_get_branch(self):
         self.assertEqual(ghub.get_branch(), '__test__master')
@@ -60,7 +62,7 @@ class TestGhubFunctions(unittest.TestCase):
     def test_get_pull_requests(self, mock_req):
         self.assertEqual(mock_req.return_value, ghub.get_pull_requests())
         mock_req.assert_called_once_with(
-            'https://api.github.com/repos/user1/repo1/pulls')
+            'https://api.github.com/repos/user1/repo1/pulls?state=open')
 
     @patch('ghub.make_github_request')
     @patch('ghub.get_user_and_repo', lambda x, y: ('user1', 'repo1'))
@@ -101,7 +103,7 @@ class TestGhubFunctions(unittest.TestCase):
     @patch('ghub.get_pull_requests')
     def test_display_pull_requests__number(self, mock_req, mock_print):
         mock_req.return_value = {
-            'number':'1', 'title':'pr1', 'user': {'login': 'foo'}}
+            'number': '1', 'title': 'pr1', 'user': {'login': 'foo'}}
         ghub.display_pull_requests(verbose=False, number=1)
         self.assertRegex(mock_print.getvalue(), '#1 pr1')
 
@@ -114,8 +116,9 @@ class TestGhubFunctions(unittest.TestCase):
     @patch('sys.stdout', new_callable=StringIO)
     @patch('ghub.get_issues')
     def test_display_issues__number(self, mock_req, mock_print):
+        print(mock_req)
         mock_req.return_value = {
-            'number':'1', 'title':'issue1', 'user': {'login': 'foo'}}
+            'number': '1', 'title': 'issue1', 'user': {'login': 'foo'}}
         ghub.display_issues('1')
         self.assertRegex(mock_print.getvalue(), '#1 issue1')
 
@@ -145,6 +148,7 @@ class TestGetApiToken(unittest.TestCase):
 
 @patch('ghub.secret_file_path', lambda: TEST_TOKEN_PATH)
 class TestGetApiTokenFallback(unittest.TestCase):
+
     def tearDown(self):
         ghub.git_cmd("config --global --remove-section github.__testghub__".split())
         if os.path.exists(TEST_TOKEN_PATH):

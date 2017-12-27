@@ -21,7 +21,9 @@ import subprocess
 import tempfile
 import termios
 import textwrap
-import urllib.request, urllib.error, urllib.parse
+import urllib.request
+import urllib.error
+import urllib.parse
 
 GITHUB_API_URL = u'https://api.github.com'
 ORIGIN_LINE_START = b'Push  URL:'
@@ -149,11 +151,11 @@ def stash_api_token(token):
     Store the API token.
 
     Stores token string into ~/.ghub . Sets 0600 perms and
-    fails if file already exists. 
+    fails if file already exists.
     """
     try:
         with os.fdopen(os.open(
-            secret_file_path(), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w') as secret_file:
+                secret_file_path(), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w') as secret_file:
             secret_file.write(token)
         print("API token has been successfully stashed.")
     except OSError:
@@ -172,13 +174,14 @@ def get_api_token():
     except IOError as e:
         print("WARN: unable to read token file.\n", file=sys.stderr)
         # fall back to git config for old users
-        token = __fallback_get_api_token();
+        token = __fallback_get_api_token()
 
     if not token:
-        print ("Unable to find github token. Run:\n\t ghub -S")
+        print("Unable to find github token. Run:\n\t ghub -S")
         raise SystemExit
     else:
         return token
+
 
 def unstash_api_token():
     """
@@ -279,8 +282,11 @@ def get_pull_requests(number=None):
     """
     user, repo = get_user_and_repo('upstream', 'origin')
     url = GITHUB_API_URL + '/repos/%s/%s/pulls' % (user, repo)
+
     if number:
         url += '/%d' % int(number)
+    else:
+        url += '?state=open'
     return make_github_request(url)
 
 
@@ -332,6 +338,7 @@ def display_pull_requests(verbose=False, number=None):
     if not pullreqs:
         print("No results.")
         return
+
     if number:
         pullreqs = (pullreqs, )
 
@@ -529,7 +536,7 @@ def approve_pull_request(number, comment=None):
         print('You already approved PR', number)
         return
     if comment is None:
-        comment = get_text_from_editor('-\n# add approval comments (or - for blank) for PR #%s' % number);
+        comment = get_text_from_editor('-\n# add approval comments (or - for blank) for PR #%s' % number)
         if not comment:
             print("No approval message: Aborting.")
             raise SystemExit
@@ -566,6 +573,7 @@ def review_pull_request(number, reviewers_str):
         print("Reviews requested from", confirmed_reviewers)
     else:
         print("Unable to request reviews:", result)
+
 
 def create_issue():
     """
@@ -651,7 +659,7 @@ def main():
         help='show issue #, or show all for specified user')
     parser.add_argument(
         '-p', '--showpull', action="store_true",
-        help='show pull request # or show all')
+        help='show pull request # or show all open pull requests by default if number is not specified')
     parser.add_argument(
         '-d', '--diff', action="store_true",
         help='show diff for pull request #')
