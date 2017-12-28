@@ -515,10 +515,10 @@ def get_text_from_editor(def_text, list_format=False):
                           if not (k.startswith("#") or k.rstrip() == '')])
 
 
-def merge_pull_request(number):
+def merge_pull_request(number, message=None):
     """Prompt for a comment and merge specified pull request."""
     (upstream_user, upstream_repo) = get_user_and_repo('upstream', 'origin')
-    commit_msg = 'ok'
+    commit_msg = message or 'ok'
     data = json.dumps({'commit_message': commit_msg}).encode('utf8')
     url = GITHUB_API_URL + '/repos/%s/%s/pulls/%d/merge' % (
         upstream_user, upstream_repo, number)
@@ -542,12 +542,12 @@ def approve_pull_request(number, comment=None):
         print('You already approved PR', number)
         return
     if comment is None:
-        comment = get_text_from_editor('-\n# add approval comments (or - for blank) for PR #%s' % number)
+        comment = get_text_from_editor('.\n# add approval comments (or . for blank) for PR #%s' % number)
         if not comment:
             print("No approval message: Aborting.")
             raise SystemExit
-        elif comment.strip() == '-':
-            comment = None  # don't supply a comment
+    if comment.strip() == '.':
+        comment = None  # don't supply a comment
 
     data = {'event': 'APPROVE'}
     if comment is not None:
@@ -581,7 +581,7 @@ def review_pull_request(number, reviewers_str):
         print("Unable to request reviews:", result)
 
 
-def create_issue():
+def create_issue(issue_text=None):
     """
     Create a new issue.
 
@@ -589,7 +589,7 @@ def create_issue():
     subsequent lines.
     """
     (upstream_user, upstream_repo) = get_user_and_repo('upstream', 'origin')
-    issue_text = get_text_from_editor(
+    issue_text = issue_text or get_text_from_editor(
         "\n# Enter issue title on the first line. Lines starting with '#' "
         "\n# will be ignored and an empty message aborts the issue creation.",
         list_format=True)
@@ -610,13 +610,13 @@ def create_issue():
         print("Sorry, something bad happened: " + str(result))
 
 
-def post_issue_comment(number):
+def post_issue_comment(number, msg=None):
     """
     Post a comment to an issue.
 
     POST /repos/:owner/:repo/issues/:number/comments
     """
-    msg = get_text_from_editor("\n# Enter comments for issue %d" % number)
+    msg = msg or get_text_from_editor("\n# Enter comments for issue %d" % number)
     if not msg:
         print("No comments: Aborting.")
         raise SystemExit
@@ -660,6 +660,8 @@ def main():
         description='command line interface to github')
     parser.add_argument("number", nargs='?', type=str,
                         help="optional issue/PR number/login")
+    parser.add_argument("message", nargs='?', type=str,
+                        help="optional message")
     parser.add_argument(
         '-i', '--showissue', action="store_true",
         help='show issue #, or show all for specified user')
@@ -718,17 +720,18 @@ def main():
     elif args.newpull:
         create_pull_request(args.newpull[0])
     elif args.mergepull:
-        merge_pull_request(_issue_number())
+        merge_pull_request(_issue_number(), args.message)
     elif args.comment:
-        post_issue_comment(_issue_number())
+        post_issue_comment(_issue_number(), args.message)
     elif args.openissue:
-        create_issue()
+        args.message = [args.number]
+        create_issue(args.message)
     elif args.assign:
         if not args.number:
             (args.number, args.assign) = (args.assign, None)
         assign_issue(_issue_number(), args.assign)
     elif args.approve:
-        approve_pull_request(_issue_number())
+        approve_pull_request(_issue_number(), args.message)
     elif args.review:
         review_pull_request(_issue_number(), args.review)
     elif args.stashtoken:
