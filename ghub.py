@@ -86,6 +86,10 @@ opener = urllib.request.build_opener(SafeHTTPSHandler)
 urllib.request.install_opener(opener)
 
 
+def state_color(state):
+    return {'open': 'green', 'closed': 'red'}.get(state.lower())
+
+
 def git_cmd(args):
     """Execute git with the supplied arguments."""
     result, _ = subprocess.Popen(
@@ -420,6 +424,8 @@ def print_pull_request_comments(comment_obj):
 def print_pull_request(pr, verbose, reviews=None):
     """Display pull requests or issues on screen."""
     if verbose:
+        print_tuple('State', '%s' % (pr['state']),
+                    b_color=state_color(pr['state']))
         print_tuple('Title', '#%s %s' % (pr['number'], pr['title']),
                     b_color='yellow')
         print_tuple('Submitter', pr['user']['login'])

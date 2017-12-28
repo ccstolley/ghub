@@ -15,6 +15,10 @@ class TestGhubFunctions(unittest.TestCase):
         # travis tests don't have a console, so console width is 0
         self.assertGreaterEqual(ghub.get_console_width(), 0)
 
+    def test_state_color(self):
+        self.assertEqual(ghub.state_color('open'), 'green')
+        self.assertEqual(ghub.state_color('closed'), 'red')
+
     @patch('ghub.get_console_width', lambda: 80)
     def test_wrap_to_console(self):
         text = (
