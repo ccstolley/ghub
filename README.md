@@ -28,9 +28,9 @@ This tool is a work in progress.
 1. Install ghub:
     ```
     git clone git@github.com:ccstolley/ghub
-    
+
     cd ghub
-    
+
     python3 ./setup.py install
     ```
 2. Generate a personal access token from
@@ -87,21 +87,25 @@ optional arguments:
 ## Examples
 
 Display a specific issue:
-    
+
     ghub -i 442
 
 Post a comment to a specific issue:
 
     ghub -c 442
 
+Close a specific issue:
+
+    ghub -x 442
+
 List all open issues assigned to me in this repo:
-    
+
     ghub -i
-    
+
 List all unassigned open issues in this repo:
 
     ghub -i none
-    
+
 List issues assigned to ccstolley, including comments and summary:
 
     ghub -i ccstolley -v
@@ -117,7 +121,7 @@ Add reviewers to pull request:
 Display pull request and comments:
 
     ghub -p 101
-    
+
 Approve pull request:
 
     ghub -ok 101
@@ -127,5 +131,5 @@ Merge pull request:
     ghub -m 101
 
 Display pull request diff in color (requires cdiff):
-    
+
     ghub -d 101 | cdiff
