@@ -757,7 +757,7 @@ def main():
     elif args.comment:
         post_issue_comment(_issue_number(), args.message)
     elif args.openissue:
-        args.message = [args.number]
+        args.message = list(args.number or [])
         create_issue(args.message)
     elif args.close:
         close_issue(_issue_number(), args.message)
