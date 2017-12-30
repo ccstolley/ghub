@@ -316,11 +316,9 @@ def get_issues(filterby=None):
     if filterby and filterby.isdigit():
         url += '/%d' % int(filterby)
     else:
+        url += '?filter=all&state=open'
         if filterby:
-            assignee = filterby
-        else:
-            assignee, _ = get_user_and_repo('origin')
-        url += '?assignee=' + urllib.parse.quote(assignee)
+            url += '&assignee=' + urllib.parse.quote(filterby)
     return make_github_request(url)
 
 
@@ -757,7 +755,7 @@ def main():
     elif args.comment:
         post_issue_comment(_issue_number(), args.message)
     elif args.openissue:
-        args.message = list(args.number or [])
+        args.message = [args.number] if args.number else []
         create_issue(args.message)
     elif args.close:
         close_issue(_issue_number(), args.message)
