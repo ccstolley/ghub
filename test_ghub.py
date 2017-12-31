@@ -80,7 +80,7 @@ class TestGhubFunctions(unittest.TestCase):
     def test_get_issues(self, mock_req):
         self.assertEqual(mock_req.return_value, ghub.get_issues())
         mock_req.assert_called_once_with(
-            'https://api.github.com/repos/user1/repo1/issues?assignee=user1')
+            'https://api.github.com/repos/user1/repo1/issues?filter=all&state=open')
 
     @patch('ghub.make_github_request')
     @patch('ghub.get_user_and_repo', lambda *args: ('user1', 'repo1'))
