@@ -7,7 +7,7 @@ A command line interface for github.
 
 ## Requirements
 
-- Python 3.4 or greater
+- Python 3.4.3 or greater
 - git
 
 ## Introduction
@@ -54,19 +54,21 @@ This tool is a work in progress.
 
 ## Usage
 ```
-usage: ghub [-h] [-i] [-p] [-d] [-n base] [-m] [-c] [-o] [-a [login]] [-v]
-            [-ok] [-r [login[,login2]]] [-S] [-U]
-            [number]
+usage: ghub [-h] [-i] [-p] [-d] [-n base] [-m] [-c] [-o] [-x] [-a [login]]
+            [-v] [-ok] [-r [login[,login2]]] [-S] [-U]
+            [number] [message]
 
 command line interface to github
 
 positional arguments:
   number                optional issue/PR number/login
+  message               optional message
 
 optional arguments:
   -h, --help            show this help message and exit
   -i, --showissue       show issue #, or show all for specified user
-  -p, --showpull        show pull request # or show all
+  -p, --showpull        show pull request # or show all open pull requests by
+                        default if number is not specified
   -d, --diff            show diff for pull request #
   -n base, --newpull base
                         create a new pull request from the current branch to
@@ -74,6 +76,7 @@ optional arguments:
   -m, --mergepull       merge pull request #
   -c, --comment         post comment on issue #
   -o, --openissue       create a new issue
+  -x, --close           close an issue #
   -a [login], --assign [login]
                         assign an issue to login
   -v, --verbose         be verbose
@@ -86,25 +89,25 @@ optional arguments:
 
 ## Examples
 
-Display a specific issue:
+Display issue 442:
 
     ghub -i 442
 
-Post a comment to a specific issue:
+Post a comment issue 442:
 
     ghub -c 442
 
-Close a specific issue:
+Close issue 442:
 
     ghub -x 442
 
-List all open issues assigned to me in this repo:
+List all open issues in this repo:
 
     ghub -i
 
-List all unassigned open issues in this repo:
+List all open pull requests in this repo:
 
-    ghub -i none
+    ghub -p
 
 List issues assigned to ccstolley, including comments and summary:
 
@@ -112,7 +115,7 @@ List issues assigned to ccstolley, including comments and summary:
 
 Create a pull request from the current branch to the specific upstream branch:
 
-    ghub -n dev
+    ghub -n master
 
 Add reviewers to pull request:
 
@@ -129,6 +132,12 @@ Approve pull request:
 Merge pull request:
 
     ghub -m 101
+
+Most commands also allow you to specify a message as an additional argument, eg:
+
+    ghub -ok 101 'LGTM'
+
+    ghub -x 442 'resolved by #440'
 
 Display pull request diff in color (requires cdiff):
 
