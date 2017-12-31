@@ -32,59 +32,8 @@ GIT_EXECUTABLE = subprocess.Popen(
 GIT_CONFIG_TOKEN = 'github.token'
 GHUB_SECRET_FILE = '.ghub'
 
-
-class SafeHTTPSConnection(http.client.HTTPConnection):
-
-    """
-    Provide an HTTPS connection which verifies certificate validity.
-
-    Uses default system ca cert files for verification.
-    """
-
-    ca_cert_file_locations = (
-        '/etc/ssl/cert.pem', '/etc/ssl/certs/ca-certificates.crt',
-        '/usr/local/share/certs/ca-root-nss.crt',
-        '/etc/ssl/certs/ca-bundle.trust.crt',
-        '/usr/local/etc/openssl/cert.pem')
-    default_port = 443
-
-    def __init__(self, host, port=None, strict=None,
-                 timeout=socket._GLOBAL_DEFAULT_TIMEOUT):
-        """Initialize SafeHTTPSConnection."""
-        http.client.HTTPConnection.__init__(self, host, port, strict, timeout)
-
-    def get_ca_certs_file(self):
-        """
-        Try to find a ca-certificates file in the usual places.
-
-        If a valid certificates file can't be found, the program exits.
-        """
-        for certsfile in self.ca_cert_file_locations:
-            if os.path.isfile(certsfile):
-                return certsfile
-        print("FATAL: Unable to verify SSL certificate validity.")
-        raise SystemExit
-
-    def connect(self):
-        """Connect to a host on a given (SSL) port."""
-        sock = socket.create_connection((self.host, self.port), self.timeout)
-        if self._tunnel_host:
-            self.sock = sock
-            self._tunnel()
-        self.sock = ssl.wrap_socket(
-            sock, ca_certs=self.get_ca_certs_file(),
-            cert_reqs=ssl.CERT_REQUIRED)
-
-
-class SafeHTTPSHandler(urllib.request.HTTPSHandler):
-
-    def https_open(self, req):
-        return self.do_open(SafeHTTPSConnection, req)
-
-
-opener = urllib.request.build_opener(SafeHTTPSHandler)
-urllib.request.install_opener(opener)
-
+if sys.version_info[0:3] < (3, 4, 3):
+    raise RuntimeError('Must use at least Python 3.4.3 or greater')
 
 def state_color(state):
     return {'open': 'green', 'closed': 'red'}.get(state.lower())
