@@ -107,7 +107,10 @@ class TestGhubFunctions(unittest.TestCase):
     @patch('ghub.get_pull_requests')
     def test_display_pull_requests__number(self, mock_req, mock_print):
         mock_req.return_value = {
-            'number': '1', 'title': 'pr1', 'user': {'login': 'foo'}}
+            'number': '1',
+            'title': 'pr1',
+            'user': {'login': 'foo'},
+            'assignee': None}
         ghub.display_pull_requests(verbose=False, number=1)
         self.assertRegex(mock_print.getvalue(), '#1 pr1')
 
@@ -122,7 +125,10 @@ class TestGhubFunctions(unittest.TestCase):
     def test_display_issues__number(self, mock_req, mock_print):
         print(mock_req)
         mock_req.return_value = {
-            'number': '1', 'title': 'issue1', 'user': {'login': 'foo'}}
+            'number': '1',
+            'title': 'issue1',
+            'user': {'login': 'foo'},
+            'assignee': None}
         ghub.display_issues('1')
         self.assertRegex(mock_print.getvalue(), '#1 issue1')
 

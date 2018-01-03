@@ -35,6 +35,7 @@ GHUB_SECRET_FILE = '.ghub'
 if sys.version_info[0:3] < (3, 4, 3):
     raise RuntimeError('Must use at least Python 3.4.3 or greater')
 
+
 def state_color(state):
     return {'open': 'green', 'closed': 'red'}.get(state.lower())
 
@@ -370,6 +371,7 @@ def print_pull_request_comments(comment_obj):
 
 def print_pull_request(pr, verbose, reviews=None):
     """Display pull requests or issues on screen."""
+
     if verbose:
         print_tuple('State', '%s' % (pr['state']),
                     b_color=state_color(pr['state']))
@@ -416,8 +418,10 @@ def print_pull_request(pr, verbose, reviews=None):
         print()
         print_pull_request_comments(pr['number'])
     else:
+        assignee = "[{}]".format(
+            colored(pr['assignee']['login'], 'blue', ['bold'])) if pr.get('assignee') else ""
         print_tuple(pr['user']['login'][:12],
-                    wrap_to_console('#%s %s' % (pr['number'], pr['title']))[0],
+                    wrap_to_console('#%s %s %s' % (pr['number'], pr['title'], assignee))[0],
                     a_color='cyan')
 
 
