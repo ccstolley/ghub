@@ -117,9 +117,9 @@ Create a pull request from the current branch to the specific upstream branch:
 
     ghub -n master
 
-Add reviewers to pull request:
+Add reviewers to pull request 414:
 
-    ghub -r manny,moe,jack
+    ghub -r manny,moe,jack 414
 
 Display pull request and comments:
 
