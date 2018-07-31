@@ -423,6 +423,7 @@ def print_pull_request(pr, verbose, reviews=None):
         print_tuple(pr['user']['login'][:12],
                     wrap_to_console('#%s %s %s' % (pr['number'], pr['title'], assignee))[0],
                     a_color='cyan')
+        print_tuple('', pr['html_url'])
 
 
 def create_pull_request(base_branch):
@@ -635,6 +636,32 @@ def assign_issue(number, assignee):
     else:
         print("Something bad happened: " + str(result))
 
+def my_review_requests():
+    """
+    Retrieve a list of pull requests requesting my review.
+
+    GET /search/issues type=pr state=open review-requested: <me>
+    """
+    user = get_user_and_repo('origin')[0]
+    base_url = GITHUB_API_URL + '/search/issues?'
+    url = base_url + urllib.parse.urlencode(
+            {'q': 'state:open type:pr archived:false review-requested:' + user})
+    result = make_github_request(
+        url,
+        headers={'content-type': 'application/x-www-form-urlencoded'})
+    items = result.get('items', [])
+    url = base_url + urllib.parse.urlencode(
+            {'q': 'state:open type:pr archived:false assignee:' + user})
+    result = make_github_request(
+        url,
+        headers={'content-type': 'application/x-www-form-urlencoded'})
+    items += result.get('items', [])
+
+    for item in items:
+        print_tuple(item['user']['login'], item['title'], a_color='cyan')
+        print_tuple('', item['html_url'], b_color='yellow')
+        print()
+
 
 def main():
     import argparse
@@ -676,6 +703,8 @@ def main():
     parser.add_argument(
         '-r', '--review', help='request review from login(s)', nargs='?', metavar='login[,login2]',
         type=str, default='')
+    parser.add_argument(
+        '-rr', '--reviewreq', help='PRs requesting my review', action='store_true')
     parser.add_argument(
         '-S', '--stashtoken', help='Stash github API token', action='store_true')
     parser.add_argument(
@@ -724,6 +753,8 @@ def main():
         stash_api_token(input('Enter token: '))
     elif args.unstashtoken:
         unstash_api_token()
+    elif args.reviewreq:
+        my_review_requests()
     else:
         parser.print_usage()
 
