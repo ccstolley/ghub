@@ -382,15 +382,16 @@ def print_pull_request(pr, verbose, reviews=None):
             print_tuple('Assignee', (pr['assignee'] or {}).get('login'))
         print_tuple('Created At', pr['created_at'])
         # tack on reviews
-        reviews = {(review['user']['login'], review['state'])
+        reviews = {(review['user']['login'], review['state'], review['body'])
                    for review in get_reviews(pr['number'])}
-        for user, state in reviews:
+        for user, state, comment in reviews:
             state = state.title()
             if state == 'Approved':
                 state = colored(state, 'green')
             else:
                 state = colored(state, 'magenta')
-            print_tuple('Review', '{} by {}'.format(state, user))
+            print_tuple('Review', '{} by {} {}'.format(
+                state, user, colored(comment or '', 'grey', attrs=['bold'])))
         if 'mergeable' in pr:
             if pr['merged']:
                 mergelabel = ('Already merged', 'white', 'magenta')
