@@ -109,6 +109,7 @@ class TestGhubFunctions(unittest.TestCase):
         mock_req.return_value = {
             'number': '1',
             'title': 'pr1',
+            'html_url': 'foo',
             'user': {'login': 'foo'},
             'assignee': None}
         ghub.display_pull_requests(verbose=False, number=1)
@@ -127,6 +128,7 @@ class TestGhubFunctions(unittest.TestCase):
         mock_req.return_value = {
             'number': '1',
             'title': 'issue1',
+            'html_url': 'foo',
             'user': {'login': 'foo'},
             'assignee': None}
         ghub.display_issues('1')
