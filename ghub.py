@@ -456,15 +456,15 @@ def create_pull_request(base_branch):
 
 def get_text_from_editor(def_text, list_format=False):
     """Run the default text editor and return the text entered."""
-    tmp = tempfile.mktemp()
-    open(tmp, "w", encoding='utf8').write(def_text)
-    editor = os.environ.get("EDITOR", "vim")
-    os.system("%s %s" % (editor, tmp))
+    with tempfile.NamedTemporaryFile(delete=False) as tmp:
+        tmp.write(def_text.encode("utf-8"))
+    editor = os.environ.get("EDITOR", "vi")
+    os.system("%s %s" % (editor, tmp.name))
     if list_format:
-        return [k.rstrip() for k in open(tmp).read().splitlines()
+        return [k.rstrip() for k in open(tmp.name).read().splitlines()
                 if not (k.startswith("#") or k.rstrip() == '')]
     else:
-        return "\n".join([k.rstrip() for k in open(tmp).read().splitlines()
+        return "\n".join([k.rstrip() for k in open(tmp.name).read().splitlines()
                           if not (k.startswith("#") or k.rstrip() == '')])
 
 
