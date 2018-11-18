@@ -358,12 +358,20 @@ def print_pull_request_comments(comment_obj):
     else:
         comments = (comment_obj, )
     for comment in comments:
+        commenter = comment['user']['login'][:12]
         paragraphs = comment['body'].splitlines()
         for i, par in enumerate(paragraphs):
             wrapped_body = wrap_to_console(par)
             if i == 0:
-                print_tuple(comment['user']['login'][:12], wrapped_body.pop(0),
-                            a_color='cyan')
+                if 'path' in comment:
+                    print_tuple(commenter, comment['path'],
+                                a_color='cyan', b_color='yellow')
+                    for diffline in comment['diff_hunk'].splitlines():
+                        print_tuple('', diffline, b_color='magenta')
+                else:
+                    txt = wrapped_body.pop(0)
+                    print_tuple(comment['user']['login'][:12], txt,
+                                a_color='cyan')
             for line in wrapped_body:
                 print_tuple('', line)
         print()
