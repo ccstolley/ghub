@@ -124,7 +124,7 @@ def get_api_token():
     token = None
     try:
         with open(secret_file_path()) as secret_file:
-            token = secret_file.read().strip()
+            token = secret_file.read(1024).strip()
     except IOError as e:
         print("WARN: unable to read token file.\n", file=sys.stderr)
         # fall back to git config for old users
