@@ -149,9 +149,12 @@ def unstash_api_token():
             secret_file.seek(0)
             secret_file.write(os.urandom(size))
             secret_file.flush()
+            os.fsync(secret_file.fileno())
+
             secret_file.seek(0)
             secret_file.write(b'\0' * size)
             secret_file.flush()
+            os.fsync(secret_file.fileno())
         os.remove(secret_file_path())
         print("Stashed API token has been destroyed.")
     except (IOError, OSError) as e:
