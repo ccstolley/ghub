@@ -4,17 +4,14 @@
 CLI interface to github.
 
 Make sure to run these first:
-    git config --global github.token <github personal access token>
     git remote add upstream git@github.com:owner/repo
     git remote add origin git@github.com:username/repo
+    ghub -S
 """
 from operator import itemgetter
 import fcntl
-import http.client
 import json
 import os
-import socket
-import ssl
 import struct
 import sys
 import subprocess
@@ -25,7 +22,7 @@ import urllib.request
 import urllib.error
 import urllib.parse
 
-GITHUB_API_URL = u'https://api.github.com'
+DEFAULT_API_URL = 'https://api.github.com'
 ORIGIN_LINE_START = b'Push  URL:'
 GIT_EXECUTABLE = subprocess.Popen(
     r'which \git', shell=True, stdout=subprocess.PIPE).communicate()[0].strip()
@@ -45,7 +42,7 @@ def git_cmd(args):
     result, _ = subprocess.Popen(
         [GIT_EXECUTABLE, ] + args, shell=False, stdout=subprocess.PIPE,
         stderr=subprocess.PIPE).communicate()
-    return result.strip()
+    return result.decode('utf8').strip()
 
 
 def get_console_width():
@@ -61,6 +58,11 @@ def wrap_to_console(text):
     return textwrap.wrap(text, width, replace_whitespace=False,
                          break_long_words=False, break_on_hyphens=False)
 
+def get_api_url(hostname):
+    if hostname == 'github.com':
+        return DEFAULT_API_URL
+    return "https://{}/api/v3".format(hostname)
+
 
 def make_github_request(*args, **kwargs):
     """Send an authorization token in a github api request."""
@@ -73,6 +75,8 @@ def make_github_request(*args, **kwargs):
     req = urllib.request.Request(*args, **kwargs)
     if method:
         req.get_method = lambda: method
+    if verbose:
+        print(method or 'GET', *args)
     try:
         urlstream = urllib.request.urlopen(req)
     except urllib.error.HTTPError as e:
@@ -125,7 +129,7 @@ def get_api_token():
     try:
         with open(secret_file_path()) as secret_file:
             token = secret_file.read(1024).strip()
-    except IOError as e:
+    except IOError:
         print("WARN: unable to read token file.\n", file=sys.stderr)
         # fall back to git config for old users
         token = __fallback_get_api_token()
@@ -168,13 +172,12 @@ def __fallback_get_api_token():
     This is deprecated and exists only to maintain backward compatibility
     with older versions of ghub.
     """
-    token = git_cmd("config --get".split() + [GIT_CONFIG_TOKEN])
-    return token.decode('utf8')
+    return git_cmd("config --get".split() + [GIT_CONFIG_TOKEN])
 
 
 def get_branch():
     """Get the current local branch."""
-    branch_name = git_cmd("symbolic-ref HEAD".split()).decode('utf8')
+    branch_name = git_cmd("symbolic-ref HEAD".split())
     if branch_name:
         return branch_name.strip().replace("refs/heads/", "")
     else:
@@ -182,7 +185,7 @@ def get_branch():
         raise SystemExit
 
 
-def get_user_and_repo(remote_name='origin', alt_name=None):
+def get_remote(name='origin', alt_name=None):
     """
     Retrieve the repo and user for the specified remote name.
 
@@ -190,38 +193,28 @@ def get_user_and_repo(remote_name='origin', alt_name=None):
     supplied, use it as an alternative repo name if remote_name is
     not found.
     """
-    def get_repo_line(cmd_output):
-        for line in cmd_output.splitlines():
-            line = line.strip()
-            if line.startswith(ORIGIN_LINE_START):
-                return line[len(ORIGIN_LINE_START):].strip().decode('utf8')
 
-    repo_line = get_repo_line(git_cmd(('remote show -n ' +
-                                       remote_name).split()))
-    if not repo_line:
-        print("This does not appear to be a git repository.")
-        raise SystemExit
-    if repo_line.find(':') < 1 and alt_name is not None:
-        repo_line = get_repo_line(git_cmd(('remote show -n ' +
-                                           alt_name).split()))
-    if repo_line.find(':') < 1:
+    url = git_cmd(('remote get-url ' + name).split())
+    if not url:
+        url = git_cmd(('remote get-url ' + alt_name).split())
+    if not url:
         print(("Unable to find remote repo named '%s'. Run:\n\t"
-               "git remote add %s ..." % (remote_name, remote_name)))
+               "git remote add %s ..." % (name, name)))
         raise SystemExit
     else:
-        _, user_name_repo = repo_line.split(':')
-        while user_name_repo.startswith('/'):
-            user_name_repo = user_name_repo[1:]
-        user_name, repo = user_name_repo.split('/')[-2:]
-        repo = repo.replace('.git', '')
-    return user_name, repo
+        githost, path = url.split(':', maxsplit=1)
+        host = githost.split('@', maxsplit=1)[-1]
+        username, repo = path.split('/', maxsplit=1)
+        if repo.endswith('.git'):
+            repo = repo[:-4]
+        return username, repo, get_api_url(host)
 
 
 def get_lead_commit(base_branch):
     """Retreieve the first commit to appear only on this branch."""
-    commit = git_cmd(("cherry -v " + base_branch).split()).decode('utf8')
+    commit = git_cmd(("cherry -v " + base_branch).split())
     if not commit and get_branch() == base_branch:
-        commit = git_cmd(("cherry -v HEAD~1").split()).decode('utf8')
+        commit = git_cmd(("cherry -v HEAD~1").split())
     commit = commit.splitlines()[0].split()
     return (commit[1], ' '.join(commit[2:]))
 
@@ -229,7 +222,7 @@ def get_lead_commit(base_branch):
 def get_commit_message_body(commit_sha1):
     """Return commit message body (no subject) for the given sha1."""
     cmd = "log --format=%b -n 1 " + commit_sha1
-    return git_cmd(cmd.split()).decode('utf8')
+    return git_cmd(cmd.split())
 
 
 def get_pull_requests(number=None):
@@ -237,8 +230,8 @@ def get_pull_requests(number=None):
     Retreive a specific pull request or all pull requests if
     number == None. Return a dictionary or list of dictionaries.
     """
-    user, repo = get_user_and_repo('upstream', 'origin')
-    url = GITHUB_API_URL + '/repos/%s/%s/pulls' % (user, repo)
+    user, repo, apiurl = get_remote('upstream', 'origin')
+    url = apiurl + '/repos/%s/%s/pulls' % (user, repo)
 
     if number:
         url += '/%d' % int(number)
@@ -252,20 +245,20 @@ def get_reviews(number):
     Retreive reviews for a specific pull request.
     Returns a list of dicts.
     """
-    user, repo = get_user_and_repo('upstream', 'origin')
-    url = GITHUB_API_URL + '/repos/%s/%s/pulls/%d/reviews' % (user, repo, int(number))
+    user, repo, apiurl = get_remote('upstream', 'origin')
+    url = apiurl+ '/repos/%s/%s/pulls/%d/reviews' % (user, repo, int(number))
     return make_github_request(url)
 
 
 def get_issues(filterby=None):
     """
-    Retreive issues from github.
+    Retrieve issues from github.
 
     Filter by either a specific number or assignee. Return a
     dictionary or list of dictionaries.
     """
-    upstream_user, repo = get_user_and_repo('upstream', 'origin')
-    url = GITHUB_API_URL + '/repos/%s/%s/issues' % (upstream_user, repo)
+    user, repo, apiurl = get_remote('upstream', 'origin')
+    url = apiurl + '/repos/%s/%s/issues' % (user, repo)
     if filterby and filterby.isdigit():
         url += '/%d' % int(filterby)
     else:
@@ -281,8 +274,8 @@ def get_pull_request_diff(number):
 
     Return a string.
     """
-    user, repo = get_user_and_repo('upstream', 'origin')
-    url = GITHUB_API_URL + '/repos/%s/%s/pulls/%s' % (user, repo, number)
+    user, repo, apiurl = get_remote('upstream', 'origin')
+    url = apiurl + '/repos/%s/%s/pulls/%s' % (user, repo, number)
     return make_github_request(
         url, headers={'accept': 'application/vnd.github.diff'})
 
@@ -344,11 +337,11 @@ def get_pull_request_comments(number):
     Retreive pull request comments and issue comments from the
     specified issue/pr number.
     """
-    user, repo = get_user_and_repo('upstream', 'origin')
-    url = GITHUB_API_URL + '/repos/%s/%s/issues/%d/comments' % (
+    user, repo, apiurl = get_remote('upstream', 'origin')
+    url = apiurl + '/repos/%s/%s/issues/%d/comments' % (
         user, repo, number)
     issue_comments = make_github_request(url)
-    url = GITHUB_API_URL + '/repos/%s/%s/pulls/%d/comments' % (
+    url = apiurl + '/repos/%s/%s/pulls/%d/comments' % (
         user, repo, number)
     pull_comments = make_github_request(url)
     return sorted(issue_comments + pull_comments, key=itemgetter('created_at'))
@@ -443,12 +436,12 @@ def create_pull_request(base_branch):
     Create a new pull request from the commits in the current branch against
     the supplied base branch in upstream.
     """
-    (upstream_user, upstream_repo) = get_user_and_repo('upstream', 'origin')
-    (user, _) = get_user_and_repo('origin')
-    (sha1, subj) = get_lead_commit(base_branch)
+    upstream_user, upstream_repo, apiurl = get_remote('upstream', 'origin')
+    user, _, _ = get_remote('origin')
+    sha1, subj = get_lead_commit(base_branch)
     body = get_commit_message_body(sha1)
     branch = get_branch()
-    url = GITHUB_API_URL + '/repos/%s/%s/pulls' % (
+    url = apiurl + '/repos/%s/%s/pulls' % (
         upstream_user, upstream_repo)
     textlines = get_text_from_editor(
         "%s\n\n%s" % (subj, body), list_format=True)
@@ -481,10 +474,10 @@ def get_text_from_editor(def_text, list_format=False):
 
 def merge_pull_request(number, message=None):
     """Prompt for a comment and merge specified pull request."""
-    (upstream_user, upstream_repo) = get_user_and_repo('upstream', 'origin')
+    upstream_user, upstream_repo, apiurl = get_remote('upstream', 'origin')
     commit_msg = message or 'ok'
     data = json.dumps({'commit_message': commit_msg}).encode('utf8')
-    url = GITHUB_API_URL + '/repos/%s/%s/pulls/%d/merge' % (
+    url = apiurl + '/repos/%s/%s/pulls/%d/merge' % (
         upstream_user, upstream_repo, number)
     result = make_github_request(
         url, data, method='PUT', headers={'content-type': 'application/json'})
@@ -498,8 +491,8 @@ def approve_pull_request(number, comment=None):
     """
     Submit "approve" review for given PR number.
     """
-    (upstream_user, upstream_repo) = get_user_and_repo('upstream')
-    (reviewer, _) = get_user_and_repo('origin')
+    upstream_user, upstream_repo, apiurl = get_remote('upstream')
+    reviewer, _, _ = get_remote('origin')
     reviews = {review['user']['login'] for review in get_reviews(number) if review['state'] == 'APPROVED'}
     if reviewer in reviews:
         # github lets you approve multiple times?
@@ -517,7 +510,7 @@ def approve_pull_request(number, comment=None):
     if comment is not None:
         data['body'] = comment
     data = json.dumps(data).encode('utf8')
-    url = GITHUB_API_URL + '/repos/%s/%s/pulls/%d/reviews' % (
+    url = apiurl + '/repos/%s/%s/pulls/%d/reviews' % (
         upstream_user, upstream_repo, number)
     result = make_github_request(
         url, data, method='POST', headers={'content-type': 'application/json'})
@@ -532,9 +525,9 @@ def review_pull_request(number, reviewers_str):
     Request review by 1 or more logins.
     """
     reviewers = reviewers_str.split(',')
-    upstream_user, upstream_repo = get_user_and_repo('upstream')
+    upstream_user, upstream_repo, apiurl = get_remote('upstream')
     data = json.dumps({'reviewers': reviewers}).encode('utf8')
-    url = GITHUB_API_URL + '/repos/%s/%s/pulls/%d/requested_reviewers' % (
+    url = apiurl + '/repos/%s/%s/pulls/%d/requested_reviewers' % (
         upstream_user, upstream_repo, number)
     result = make_github_request(
         url, data, method='POST', headers={'content-type': 'application/json'})
@@ -552,7 +545,7 @@ def create_issue(issue_text=None):
     Open editor and read title from first line and body from
     subsequent lines.
     """
-    (upstream_user, upstream_repo) = get_user_and_repo('upstream', 'origin')
+    upstream_user, upstream_repo, apiurl = get_remote('upstream', 'origin')
     issue_text = issue_text or get_text_from_editor(
         "\n# Enter issue title on the first line. Lines starting with '#' "
         "\n# will be ignored and an empty message aborts the issue creation.",
@@ -564,7 +557,7 @@ def create_issue(issue_text=None):
     if issue_text:
         data['body'] = '\n'.join(issue_text)
     data = json.dumps(data).encode('utf8')
-    url = GITHUB_API_URL + '/repos/%s/%s/issues' % (
+    url = apiurl + '/repos/%s/%s/issues' % (
         upstream_user, upstream_repo)
     result = make_github_request(
         url, data, headers={'content-type': 'application/json'})
@@ -581,7 +574,7 @@ def close_issue(number, issue_text=None):
     PATCH /repos/:owner/:repo/issues/:number
 
     """
-    (upstream_user, upstream_repo) = get_user_and_repo('upstream', 'origin')
+    upstream_user, upstream_repo, apiurl = get_remote('upstream', 'origin')
     if issue_text:
         comment = post_issue_comment(number, issue_text)
         if comment['status'] is False:
@@ -590,7 +583,7 @@ def close_issue(number, issue_text=None):
 
     data = json.dumps({'state': 'closed'}).encode('utf8')
 
-    url = GITHUB_API_URL + '/repos/%s/%s/issues/%d' % (
+    url = apiurl + '/repos/%s/%s/issues/%d' % (
         upstream_user, upstream_repo, number)
 
     result = make_github_request(
@@ -613,8 +606,8 @@ def post_issue_comment(number, msg=None):
     if not msg:
         print("No comments: Aborting.")
         raise SystemExit
-    (upstream_user, upstream_repo) = get_user_and_repo('upstream', 'origin')
-    url = GITHUB_API_URL + '/repos/%s/%s/issues/%d/comments' % (
+    upstream_user, upstream_repo, apiurl = get_remote('upstream', 'origin')
+    url = apiurl + '/repos/%s/%s/issues/%d/comments' % (
         upstream_user, upstream_repo, number)
     data = json.dumps({'body': msg}).encode('utf8')
     result = make_github_request(
@@ -633,11 +626,11 @@ def assign_issue(number, assignee):
 
     PATCH /repos/:owner/:repo/issues/:number
     """
-    (upstream_user, upstream_repo) = get_user_and_repo('upstream', 'origin')
+    upstream_user, upstream_repo, apiurl = get_remote('upstream', 'origin')
     if not assignee:
-        (assignee, _) = get_user_and_repo('origin')
+        assignee, _, _ = get_remote('origin')
     data = json.dumps({'assignee': assignee}).encode('utf8')
-    url = GITHUB_API_URL + '/repos/%s/%s/issues/%d' % (
+    url = apiurl + '/repos/%s/%s/issues/%d' % (
         upstream_user, upstream_repo, number)
     result = make_github_request(
         url, data, method='PATCH',
@@ -654,16 +647,16 @@ def my_review_requests():
 
     GET /search/issues type=pr state=open review-requested: <me>
     """
-    user = get_user_and_repo('origin')[0]
-    base_url = GITHUB_API_URL + '/search/issues?'
+    user, _, apiurl = get_remote('origin')
+    base_url = apiurl + '/search/issues?'
     url = base_url + urllib.parse.urlencode(
-            {'q': 'state:open type:pr archived:false review-requested:' + user})
+        {'q': 'state:open type:pr archived:false review-requested:' + user})
     result = make_github_request(
         url,
         headers={'content-type': 'application/x-www-form-urlencoded'})
     items = result.get('items', [])
     url = base_url + urllib.parse.urlencode(
-            {'q': 'state:open type:pr archived:false assignee:' + user})
+        {'q': 'state:open type:pr archived:false assignee:' + user})
     result = make_github_request(
         url,
         headers={'content-type': 'application/x-www-form-urlencoded'})

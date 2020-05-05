@@ -1,7 +1,7 @@
 import os
 import unittest
 from io import StringIO
-from mock import patch
+from unittest.mock import patch
 import ghub
 
 
@@ -9,7 +9,7 @@ class TestGhubFunctions(unittest.TestCase):
 
     def test_version(self):
         result = ghub.git_cmd(['version', ])
-        self.assertRegex(result, b'git version \d+.\d+.\d+')
+        self.assertRegex(result, 'git version \d+.\d+.\d+')
 
     def test_get_console_width(self):
         # travis tests don't have a console, so console width is 0
@@ -34,63 +34,72 @@ class TestGhubFunctions(unittest.TestCase):
         for line in result:
             self.assertLess(len(line), 80)
 
-    @patch('ghub.git_cmd', lambda x: b'refs/heads/__test__master')
+    @patch('ghub.git_cmd', lambda x: 'refs/heads/__test__master')
     def test_get_branch(self):
         self.assertEqual(ghub.get_branch(), '__test__master')
 
-    def test_get_user_and_repo(self):
-        git_output = (b'Fetch URL: git@github.com:ccstolley/ghub\n'
-                      b'Push  URL: git@github.com:ccstolley/ghub\n'
-                      b'HEAD branch: (not queried)\n')
+    def test_remote(self):
+        git_output = ('git@github.com:ccstolley/ghub')
         with patch('ghub.git_cmd', lambda x: git_output):
-            self.assertEqual(ghub.get_user_and_repo(),
-                             ('ccstolley', 'ghub'))
+            self.assertEqual(ghub.get_remote(),
+                    ('ccstolley', 'ghub', 'https://api.github.com'))
+
+        git_output = ('git@sandwich.net:ccstolley/ghub')
+        with patch('ghub.git_cmd', lambda x: git_output):
+            self.assertEqual(ghub.get_remote(),
+                    ('ccstolley', 'ghub', 'https://sandwich.net/api/v3'))
+
+        git_output = ('git@sandwich.net:ccstolley/ghub.git')
+        with patch('ghub.git_cmd', lambda x: git_output):
+            self.assertEqual(ghub.get_remote(),
+                    ('ccstolley', 'ghub', 'https://sandwich.net/api/v3'))
+
 
     def test_get_lead_commit(self):
         git_output = (
-            b'+ 7cec2b67173717c2dab0e62dfc27943851c40618 message\n'
-            b'+ 2819029108291089090890890890943851c40892 what is\n')
+            '+ 7cec2b67173717c2dab0e62dfc27943851c40618 message\n'
+            '+ 2819029108291089090890890890943851c40892 what is')
         with patch('ghub.git_cmd', lambda x: git_output):
             self.assertEqual(
                 ghub.get_lead_commit('master'),
                 ('7cec2b67173717c2dab0e62dfc27943851c40618', 'message'))
 
-    @patch('ghub.git_cmd', lambda x: b'foobar\nfoobar2\n')
+    @patch('ghub.git_cmd', lambda x: 'foobar\nfoobar2\n')
     def test_get_commit_message_body(self):
         self.assertEqual(
             ghub.get_commit_message_body('23121aed'),
             'foobar\nfoobar2\n')
 
     @patch('ghub.make_github_request')
-    @patch('ghub.get_user_and_repo', lambda x, y: ('user1', 'repo1'))
+    @patch('ghub.git_cmd', lambda x: 'git@github.com:user1/repo1')
     def test_get_pull_requests(self, mock_req):
         self.assertEqual(mock_req.return_value, ghub.get_pull_requests())
         mock_req.assert_called_once_with(
             'https://api.github.com/repos/user1/repo1/pulls?state=open')
 
     @patch('ghub.make_github_request')
-    @patch('ghub.get_user_and_repo', lambda x, y: ('user1', 'repo1'))
+    @patch('ghub.git_cmd', lambda x: 'git@github.com:user1/repo1')
     def test_get_pull_requests__specific_number(self, mock_req):
         self.assertEqual(mock_req.return_value, ghub.get_pull_requests(5))
         mock_req.assert_called_once_with(
             'https://api.github.com/repos/user1/repo1/pulls/5')
 
     @patch('ghub.make_github_request')
-    @patch('ghub.get_user_and_repo', lambda *args: ('user1', 'repo1'))
+    @patch('ghub.git_cmd', lambda x: 'git@github.com:user1/repo1')
     def test_get_issues(self, mock_req):
         self.assertEqual(mock_req.return_value, ghub.get_issues())
         mock_req.assert_called_once_with(
             'https://api.github.com/repos/user1/repo1/issues?filter=all&state=open')
 
     @patch('ghub.make_github_request')
-    @patch('ghub.get_user_and_repo', lambda *args: ('user1', 'repo1'))
+    @patch('ghub.git_cmd', lambda x: 'git@github.com:user1/repo1')
     def test_get_issues__specific_number(self, mock_req):
         self.assertEqual(mock_req.return_value, ghub.get_issues('4'))
         mock_req.assert_called_once_with(
             'https://api.github.com/repos/user1/repo1/issues/4')
 
     @patch('ghub.make_github_request')
-    @patch('ghub.get_user_and_repo', lambda *args: ('user1', 'repo1'))
+    @patch('ghub.git_cmd', lambda x: 'git@github.com:user1/repo1')
     def test_get_pull_request_diff(self, mock_req):
         self.assertEqual(mock_req.return_value, ghub.get_pull_request_diff(4))
         mock_req.assert_called_once_with(
