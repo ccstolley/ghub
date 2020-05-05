@@ -39,20 +39,31 @@ class TestGhubFunctions(unittest.TestCase):
         self.assertEqual(ghub.get_branch(), '__test__master')
 
     def test_remote(self):
-        git_output = ('git@github.com:ccstolley/ghub')
-        with patch('ghub.git_cmd', lambda x: git_output):
-            self.assertEqual(ghub.get_remote(),
-                    ('ccstolley', 'ghub', 'https://api.github.com'))
+        tests = (('git@github.com:ccstolley/ghub',
+                 ('ccstolley', 'ghub', 'https://api.github.com')),
 
-        git_output = ('git@sandwich.net:ccstolley/ghub')
-        with patch('ghub.git_cmd', lambda x: git_output):
-            self.assertEqual(ghub.get_remote(),
-                    ('ccstolley', 'ghub', 'https://sandwich.net/api/v3'))
+                 ('git@sandwich.net:ccstolley/ghub',
+                 ('ccstolley', 'ghub', 'https://sandwich.net/api/v3')),
 
-        git_output = ('git@sandwich.net:ccstolley/ghub.git')
-        with patch('ghub.git_cmd', lambda x: git_output):
-            self.assertEqual(ghub.get_remote(),
-                    ('ccstolley', 'ghub', 'https://sandwich.net/api/v3'))
+                 ('git@sandwich.net:ccstolley/ghub.git',
+                 ('ccstolley', 'ghub', 'https://sandwich.net/api/v3')),
+
+                 ('https://sandwich.net/ccstolley/ghub',
+                 ('ccstolley', 'ghub', 'https://sandwich.net/api/v3')),
+
+                 ('ssh://sandwich.net/ccstolley/ghub',
+                 ('ccstolley', 'ghub', 'https://sandwich.net/api/v3')),
+
+                 ('git://sandwich.net/ccstolley/ghub',
+                 ('ccstolley', 'ghub', 'https://sandwich.net/api/v3')),
+
+                 ('git://github.com/ccstolley/ghub.git',
+                 ('ccstolley', 'ghub', 'https://api.github.com')),
+                 )
+
+        for git_output, expected in tests:
+            with patch('ghub.git_cmd', lambda x: git_output):
+                self.assertEqual(ghub.get_remote(), expected)
 
 
     def test_get_lead_commit(self):

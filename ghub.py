@@ -202,8 +202,12 @@ def get_remote(name='origin', alt_name=None):
                "git remote add %s ..." % (name, name)))
         raise SystemExit
     else:
-        githost, path = url.split(':', maxsplit=1)
-        host = githost.split('@', maxsplit=1)[-1]
+        if url.startswith(('https://', 'http://', 'ssh://', 'git://')):
+            url = url.split('://', maxsplit=1)[-1]
+            host, path = url.split('/', maxsplit=1)
+        else:
+            host, path = url.split(':', maxsplit=1)
+            host = host.split('@', maxsplit=1)[-1]
         username, repo = path.split('/', maxsplit=1)
         if repo.endswith('.git'):
             repo = repo[:-4]
